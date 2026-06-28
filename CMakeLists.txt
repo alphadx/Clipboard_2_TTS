@@ -75,3 +75,18 @@ target_link_libraries(ClipboardTTSMonitor PRIVATE
     ole32.lib
     oleaut32.lib
 )
+
+# Install rules for CPack
+install(TARGETS ClipboardTTSMonitor DESTINATION bin)
+
+# CPack configuration for WiX
+set(CPACK_GENERATOR "WIX")
+set(CPACK_PACKAGE_NAME "ClipboardTTSMonitor")
+set(CPACK_PACKAGE_VENDOR "ClipboardTTS")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Clipboard Text-to-Speech Monitor")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_WIX_UPGRADE_GUID "98c6b758-038c-42cc-a42e-131e5f3f4a7c") # Generated GUID for stable upgrades
+
+include(CPack)

@@ -1,0 +1,43 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+  <Package Name="Clipboard TTS Monitor" Manufacturer="ClipboardTTS" Version="1.0.0.0" UpgradeCode="98c6b758-038c-42cc-a42e-131e5f3f4a7c">
+    <MajorUpgrade DowngradeErrorMessage="Una version mas reciente de [ProductName] ya esta instalada." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <ui:WixUI Id="WixUI_InstallDir" />
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+
+    <Feature Id="Main">
+      <ComponentGroupRef Id="ProductComponents" />
+      <ComponentRef Id="ApplicationShortcut" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="ClipboardTTSMonitor" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="Clipboard TTS Monitor" />
+    </StandardDirectory>
+  </Fragment>
+
+  <Fragment>
+    <ComponentGroup Id="ProductComponents" Directory="INSTALLFOLDER">
+      <Component>
+        <File Id="ClipboardTTSMonitorEXE" Source="build\Release\ClipboardTTSMonitor.exe" />
+      </Component>
+    </ComponentGroup>
+
+    <DirectoryRef Id="ApplicationProgramsFolder">
+      <Component Id="ApplicationShortcut" Guid="72445c7b-3b0f-4dc9-9d7a-1abcde5f87b3">
+        <Shortcut Id="ApplicationStartMenuShortcut"
+                  Name="Clipboard TTS Monitor"
+                  Description="Monitorea el portapapeles y lee el texto"
+                  Target="[#ClipboardTTSMonitorEXE]"
+                  WorkingDirectory="INSTALLFOLDER"/>
+        <RemoveFolder Id="CleanUpShortCut" Directory="ApplicationProgramsFolder" On="uninstall"/>
+        <RegistryValue Root="HKCU" Key="Software\ClipboardTTS\ClipboardTTSMonitor" Name="installed" Type="integer" Value="1" KeyPath="yes"/>
+      </Component>
+    </DirectoryRef>
+  </Fragment>
+</Wix>
