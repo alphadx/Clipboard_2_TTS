@@ -50,15 +50,23 @@ git clone https://github.com/alphadx/Clipboard_2_TTS.git
 # 2. Ingresa al directorio del proyecto
 cd Clipboard_2_TTS
 
-# 3. (Opcional) Configura la construcción con CMake
-mkdir build
-cd build
-cmake ..
-
-# 4. Compila el proyecto
-cmake --build . --config Release
+# 3. Configura y compila el binario usando el preset de Ninja
+cmake --preset ninja-x64-release
+cmake --build --preset ninja-x64-release
 ```
-*(Nota: El proyecto también incluye archivos de configuración de CMakePresets si prefieres trabajar directamente abriendo la carpeta en Visual Studio).*
+*(Nota: El proyecto incluye archivos de configuración de CMakePresets para facilitar la compilación y trabajar directamente abriendo la carpeta en Visual Studio).*
+
+### Empaquetado del Instalador (MSI)
+
+Para distribuir la aplicación, el proyecto utiliza **WiX Toolset v7** para generar un instalador auto-contenido `.msi`. Una vez compilado el ejecutable, puedes generar el instalador de la siguiente manera:
+
+```bash
+# 1. Instala la extensión gráfica de WiX (si no la tienes)
+wix extension add -g WixToolset.UI.wixext
+
+# 2. Construye el paquete MSI 
+wix build Package.wxs -ext WixToolset.UI.wixext -o build\ClipboardTTSMonitor.msi
+```
 
 ### Conoce la Arquitectura
 El software emplea un diseño técnico estructurado enfocado en la concurrencia segura y bajo consumo de recursos:
