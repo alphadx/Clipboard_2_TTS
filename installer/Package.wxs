@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Clipboard TTS Monitor"
+           Version="1.0.0.0"
+           Manufacturer="EMPRESA"
+           UpgradeCode="4a5c8e23-7a98-4c3e-b8d2-1f486a9c73e1"
+           Scope="perUser">
+           
+    <!-- Include directories and components -->
+    <Feature Id="MainFeature" Title="Main Program" Level="1">
+      <ComponentRef Id="MainExecutable" />
+      <ComponentRef Id="AppIcon" />
+      <ComponentRef Id="ConfigIni" />
+      <ComponentRef Id="AutoStartRegistry" />
+    </Feature>
+  </Package>
+</Wix>

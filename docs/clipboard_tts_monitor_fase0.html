@@ -1,0 +1,2438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clipboard TTS Monitor - Documento de Diseño Técnico Fase 0</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
+    onload="renderMathInElement(document.body, {delimiters: [{left: '$$', right: '$$', display: true}, {left: '$', right: '$', display: false}]});"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>
+mermaid.initialize({
+    startOnLoad: true,
+    theme: 'neutral',
+    themeVariables: {
+        primaryColor: '#f5f5f5',
+        primaryTextColor: '#333',
+        primaryBorderColor: '#999',
+        lineColor: '#666',
+        secondaryColor: '#fafafa',
+        tertiaryColor: '#fff'
+    }
+});
+</script>
+<style>
+/* === RESET & BASE === */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: Georgia, "Noto Serif SC", serif;
+    font-size: 11pt;
+    line-height: 1.6;
+    color: #333;
+    text-align: justify;
+    text-align-last: left;
+    string-set: doctitle "";
+}
+
+/* === PAGE SETUP === */
+@page {
+    size: A4;
+    margin: 2.5cm 2cm;
+    @top-center { content: string(doctitle); font-size: 9pt; color: #666; }
+    @bottom-center { content: counter(page); font-size: 9pt; }
+}
+@page :first { margin: 0; @top-center { content: none; } @bottom-center { content: none; } }
+@page cover { @top-center { content: none; } @bottom-center { content: none; } }
+@page toc { @top-center { content: none; } @bottom-center { content: none; } }
+
+/* === COVER === */
+.cover {
+    page: cover;
+    width: 210mm;
+    height: 297mm;
+    margin: 0;
+    position: relative;
+    overflow: hidden;
+    page-break-after: always;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
+}
+.cover::before {
+    content: '';
+    position: absolute;
+    top: -50px;
+    right: -50px;
+    width: 300px;
+    height: 300px;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-radius: 50%;
+}
+.cover::after {
+    content: '';
+    position: absolute;
+    bottom: -100px;
+    left: -100px;
+    width: 400px;
+    height: 400px;
+    border: 2px solid rgba(255,255,255,0.05);
+    border-radius: 50%;
+}
+.cover-accent {
+    position: absolute;
+    top: 60mm;
+    left: 0;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, #e94560, transparent);
+}
+.cover-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    width: 80%;
+    z-index: 1;
+}
+.cover-badge {
+    display: inline-block;
+    padding: 0.3em 1.2em;
+    border: 1px solid rgba(233,69,96,0.6);
+    color: #e94560;
+    font-size: 10pt;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 2cm;
+}
+.cover-title {
+    font-size: 32pt;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 0.5cm;
+    letter-spacing: 1px;
+}
+.cover-subtitle {
+    font-size: 14pt;
+    color: rgba(255,255,255,0.7);
+    margin-bottom: 3cm;
+    font-style: italic;
+}
+.cover-meta {
+    font-size: 11pt;
+    color: rgba(255,255,255,0.6);
+    line-height: 2;
+}
+.cover-meta p { margin: 0.2em 0; }
+
+/* === TOC === */
+.toc-page { page: toc; page-break-after: always; }
+.toc { list-style: none; padding: 0; margin: 0; }
+.toc li { margin: 0.4em 0; }
+.toc a { text-decoration: none; color: #333; }
+.toc a::after { content: leader('.') target-counter(attr(href url), page); }
+.toc .toc-l1 { font-weight: bold; margin-top: 0.8em; }
+.toc .toc-l2 { padding-left: 1.5em; }
+.toc .toc-l3 { padding-left: 3em; font-size: 10pt; }
+
+/* === HEADINGS === */
+h1 {
+    font-size: 20pt;
+    color: #1a1a2e;
+    border-bottom: 2px solid #e94560;
+    padding-bottom: 0.3em;
+    margin-top: 1.5em;
+    page-break-after: avoid;
+    string-set: doctitle content();
+}
+h2 {
+    font-size: 16pt;
+    color: #16213e;
+    border-left: 4px solid #0f3460;
+    padding-left: 0.5em;
+    margin-top: 1.3em;
+    page-break-after: avoid;
+}
+h3 {
+    font-size: 13pt;
+    color: #333;
+    margin-top: 1.2em;
+    page-break-after: avoid;
+}
+h4 {
+    font-size: 11.5pt;
+    color: #444;
+    font-style: italic;
+    margin-top: 1em;
+    page-break-after: avoid;
+}
+
+/* === TABLES (Three-line) === */
+table {
+    width: 100%;
+    max-width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+    font-size: 10pt;
+    box-sizing: border-box;
+}
+thead { border-top: 2px solid #333; border-bottom: 1px solid #333; }
+tbody { border-bottom: 2px solid #333; }
+th, td { padding: 0.5em 0.8em; text-align: left; vertical-align: top; }
+th { font-weight: bold; background: #f9f9f9; }
+tr { page-break-inside: avoid; }
+caption { font-weight: bold; margin-bottom: 0.5em; text-align: left; }
+caption::before { content: attr(data-label) "  "; }
+
+/* === CODE === */
+pre {
+    background: #f5f5f5;
+    padding: 1em;
+    border-left: 3px solid #ccc;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-size: 9pt;
+    line-height: 1.4;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+code {
+    font-family: "Courier New", Consolas, monospace;
+    font-size: 9.5pt;
+    background: #f5f5f5;
+    padding: 0.15em 0.4em;
+    word-break: break-word;
+}
+pre code { background: none; padding: 0; }
+
+/* === FIGURES === */
+figure {
+    margin: 1.5em 0;
+    text-align: center;
+    page-break-inside: avoid;
+    max-width: 100%;
+}
+figure img, figure svg {
+    max-width: 80%;
+    max-height: 40vh;
+    height: auto;
+}
+figcaption {
+    font-size: 10pt;
+    color: #666;
+    margin-top: 0.5em;
+}
+figcaption::before { content: attr(data-label) ": "; font-weight: bold; }
+
+/* === BLOCKQUOTE / REQ BOX === */
+.req-box {
+    border-left: 4px solid #e94560;
+    padding: 0.8em 1em;
+    margin: 1em 0;
+    background: #fef6f6;
+    page-break-inside: avoid;
+}
+.req-box-alt {
+    border-left: 4px solid #0f3460;
+    padding: 0.8em 1em;
+    margin: 1em 0;
+    background: #f6f9fe;
+    page-break-inside: avoid;
+}
+
+/* === DEFINITION / THEOREM === */
+.definition {
+    border-left: 3px solid #333;
+    padding-left: 1em;
+    margin: 1em 0;
+    page-break-inside: avoid;
+}
+.definition-title { font-weight: bold; }
+
+/* === ALGORITHM === */
+.algorithm {
+    border: 1px solid #333;
+    padding: 0.5em 1em;
+    background: white;
+    margin: 1em 0;
+    page-break-inside: avoid;
+}
+.alg-title { font-weight: bold; margin-bottom: 0.5em; }
+
+/* === BDD SCENARIO === */
+.bdd-scenario {
+    border: 1px solid #ddd;
+    padding: 0.8em 1em;
+    margin: 0.8em 0;
+    background: #fafafa;
+    page-break-inside: avoid;
+}
+.bdd-scenario-title { font-weight: bold; color: #16213e; margin-bottom: 0.5em; }
+.bdd-given { color: #2e7d32; }
+.bdd-when { color: #1565c0; }
+.bdd-then { color: #c62828; }
+
+/* === STATE DIAGRAM === */
+.state-node {
+    display: inline-block;
+    border: 2px solid #333;
+    border-radius: 50%;
+    width: 80px;
+    height: 80px;
+    line-height: 80px;
+    text-align: center;
+    font-size: 9pt;
+    font-weight: bold;
+    background: #f5f5f5;
+}
+.state-initial { border: 3px double #333; }
+
+/* === MERMAID === */
+.mermaid {
+    max-width: 100%;
+    margin: 1em 0;
+}
+
+/* === OVERFLOW PREVENTION === */
+pre, table, figure, img, svg, .mermaid, blockquote, .equation {
+    max-width: 100%;
+    box-sizing: border-box;
+}
+.katex-display { overflow-x: auto; }
+a { word-break: break-all; color: #0f3460; }
+
+/* === UTILITY === */
+.text-center { text-align: center; }
+.text-bold { font-weight: bold; }
+.text-small { font-size: 9.5pt; }
+.mt-1 { margin-top: 1em; }
+.mb-1 { margin-bottom: 1em; }
+.page-break { page-break-before: always; }
+
+/* === CONFIG FILE === */
+.config-file {
+    border: 1px solid #999;
+    padding: 1em;
+    background: #fafafa;
+    font-family: "Courier New", Consolas, monospace;
+    font-size: 9pt;
+    line-height: 1.5;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+.config-file-title {
+    font-weight: bold;
+    background: #e0e0e0;
+    padding: 0.3em 0.6em;
+    margin: -1em -1em 0.8em -1em;
+    border-bottom: 1px solid #999;
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== COVER ==================== -->
+<div class="cover">
+    <div class="cover-accent"></div>
+    <div class="cover-content">
+        <div class="cover-badge">Fase 0 &mdash; Diseño Técnico</div>
+        <h1 class="cover-title" style="border:none; color:#fff; margin-bottom:0.5cm;">Clipboard TTS Monitor</h1>
+        <p class="cover-subtitle">Documento de Diseño Técnico, Ingenieria de Requerimientos<br>y Arquitectura Estructural (Modelo 5+1)</p>
+        <div class="cover-meta">
+            <p><strong>Rol:</strong> Ingeniero de Software Principal y Arquitecto de Soluciones Senior</p>
+            <p><strong>Plataforma:</strong> Windows 11 (x86/x64) &mdash; Win32 API / C++ / COM</p>
+            <p><strong>Fecha:</strong> 28 de Junio de 2026</p>
+            <p><strong>Version:</strong> 1.0 &mdash; Fase 0 (Planificacion)</p>
+            <p style="margin-top:1em; font-size:10pt; color:rgba(255,255,255,0.4);">
+                No se incluye codigo fuente. Este documento constituye el pipeline<br>
+                de diseño tecnico previo a la fase de implementacion.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- ==================== TOC ==================== -->
+<div class="toc-page">
+    <h1 style="border:none; string-set: doctitle ";">Tabla de Contenidos</h1>
+    <ul class="toc">
+        <li class="toc-l1"><a href="#part-a">PARTE A: Ingenieria de Requerimientos e Historias de Usuario</a></li>
+        <li class="toc-l2"><a href="#req-func">1. Requerimientos Funcionales (RF)</a></li>
+        <li class="toc-l2"><a href="#req-nofunc">2. Requerimientos No Funcionales (RNF)</a></li>
+        <li class="toc-l2"><a href="#historias">3. Historias de Usuario y Criterios de Aceptacion BDD</a></li>
+
+        <li class="toc-l1"><a href="#part-b">PARTE B: Modelado Arquitectonico (Modelo 5+1)</a></li>
+        <li class="toc-l2"><a href="#vista-escenarios">1. Vista de Escenarios (Casos de Uso)</a></li>
+        <li class="toc-l2"><a href="#vista-logica">2. Vista Logica</a></li>
+        <li class="toc-l2"><a href="#vista-procesos">3. Vista de Procesos</a></li>
+        <li class="toc-l2"><a href="#vista-desarrollo">4. Vista de Desarrollo</a></li>
+        <li class="toc-l2"><a href="#vista-despliegue">5. Vista de Despliegue</a></li>
+        <li class="toc-l2"><a href="#vista-estados">6. Vista de Estados/Datos</a></li>
+
+        <li class="toc-l1"><a href="#part-c">PARTE C: Diseno Detallado de Bajo Nivel y Configuracion del Entorno</a></li>
+        <li class="toc-l2"><a href="#api-firmas">1. Firmas de Funciones Criticas de la API de Windows</a></li>
+        <li class="toc-l2"><a href="#cursorrules">2. Archivo de Configuracion de IA (.cursorrules)</a></li>
+
+        <li class="toc-l1"><a href="#anexos">Anexos Tecnicos</a></li>
+        <li class="toc-l2"><a href="#anexo-a">Anexo A: Tabla de Mapeo de Velocidades</a></li>
+        <li class="toc-l2"><a href="#anexo-b">Anexo B: Enumeracion de Voces SAPI5</a></li>
+        <li class="toc-l2"><a href="#anexo-c">Anexo C: Referencias Técnicas</a></li>
+    </ul>
+</div>
+
+<!-- ==================== PARTE A ==================== -->
+<h1 id="part-a">PARTE A: Ingenieria de Requerimientos e Historias de Usuario</h1>
+
+<h2 id="req-func">1. Requerimientos Funcionales (RF)</h2>
+
+<p>Los siguientes requerimientos funcionales constituyen el nucleo operativo del sistema <strong>Clipboard TTS Monitor</strong>. Cada requerimiento se identifica con la nomenclatura estricta <code>RF-NN</code> y se vincula con las historias de usuario correspondientes.</p>
+
+<table>
+<caption data-label="Tabla 1">Requerimientos Funcionales del Sistema</caption>
+<thead>
+<tr><th>ID</th><th>Requerimiento</th><th>Modulo</th><th>Prioridad</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>RF-01</strong></td>
+<td>
+<strong>Monitoreo de Portapapeles mediante Listener Pasivo.</strong> El sistema debe registrar el listener nativo <code>AddClipboardFormatListener</code> sobre una ventana oculta de mensajes para recibir notificaciones <code>WM_CLIPBOARDUPDATE</code> cuando el contenido del portapapeles cambia, sin interferir ni bloquear el flujo nativo de <code>CTRL+C</code> de la aplicacion de origen.
+</td>
+<td>Clipboard Listener</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RF-02</strong></td>
+<td>
+<strong>Extraccion Asincrona de Texto con Anti-Deadlock Backoff.</strong> Tras detectar un cambio en el portapapeles, el sistema debe encolar una tarea en un hilo trabajador (Worker Thread) con un retardo controlado de ~50ms antes de invocar <code>OpenClipboard</code>, <code>GetClipboardData(CF_UNICODETEXT)</code> y <code>CloseClipboard</code>, para evitar bloqueos mutuos con la aplicacion de origen. Adicionalmente, el sistema debe filtrar el texto, ignorando silenciosamente aquellos que contengan 40 caracteres o menos.
+</td>
+<td>Clipboard Listener</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RF-03</strong></td>
+<td>
+<strong>Sintesis de Voz Text-to-Speech (TTS) Asincrona.</strong> El texto extraido del portapapeles debe ser procesado mediante el motor SAPI5 (<code>ISpVoice</code>) utilizando la bandera <code>SPF_ASYNC</code>, permitiendo que la reproduccion se ejecute sin congelar el hilo principal de procesamiento de mensajes Win32 ni bloquear la escucha de atajos globales.
+</td>
+<td>TTS Engine</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RF-04</strong></td>
+<td>
+<strong>Control de Salto de Reproducción (CTRL+1).</strong> El sistema debe registrar un hotkey global <code>CTRL+1</code> que detenga la reproducción actual (saltar). Si hay elementos en la cola, el sistema continuará automáticamente con la reproducción del siguiente texto.
+</td>
+<td>Hotkey Manager</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RF-05</strong></td>
+<td>
+<strong>Repeticion del Ultimo Registro Hablado (CTRL+3).</strong> El sistema debe mantener un bufer circular en memoria (historico LIFO de capacidad configurable, minimo 1 entrada) con el ultimo texto sintetizado exitosamente. Al activar <code>CTRL+3</code>, debe reproducir el contenido de dicho bufer, independientemente del estado actual del portapapeles.
+</td>
+<td>TTS Engine / Historico</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RF-06</strong></td>
+<td>
+<strong>Detención Total y Vaciado de Cola (ALT+1).</strong> El sistema debe registrar un hotkey global <code>ALT+1</code> que detenga completamente todas las reproducciones actuales y vacíe la cola de textos. El programa debe quedar en estado de escucha esperando nuevos textos.
+</td>
+<td>Hotkey Manager / State Machine</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RF-07</strong></td>
+<td>
+<strong>Control Dinamico de Velocidad de Reproduccion (20 Niveles).</strong> El sistema debe exponer un control de velocidad con 20 niveles discretos, mapeados linealmente desde $0.25x$ (nivel 1) hasta $2.5x$ (nivel 20), correspondientes al rango numerico de SAPI de $-10$ a $+10$. La conversion debe seguir la formula: $Rate_{SAPI} = round( (velocidad - 1) \times \frac{20}{19} - 10 )$.
+</td>
+<td>TTS Engine</td>
+<td>Media</td>
+</tr>
+<tr>
+<td><strong>RF-08</strong></td>
+<td>
+<strong>Interfaz de Bandeja del Sistema (System Tray) con Menu Contextual.</strong> La aplicacion carece de ventana principal persistente. Debe exponer un icono en la bandeja del sistema mediante <code>Shell_NotifyIcon(NIM_ADD)</code> con un menu contextual (<code>TrackPopupMenu</code>) que incluya: lista de voces disponibles, control deslizante de velocidad, opcion de reconfiguracion de atajos y opcion de salida.
+</td>
+<td>Win32 UI / Tray Icon</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RF-09</strong></td>
+<td>
+<strong>Enumeracion y Seleccion de Voces TTS Instaladas.</strong> El menu contextual debe enumerar todas las voces SAPI5 disponibles en el sistema mediante <code>SpEnumTokens(SPCAT_VOICES, NULL, NULL, &amp;pEnum)</code>, permitiendo al usuario seleccionar la voz activa en tiempo de ejecucion mediante <code>ISpVoice::SetVoice()</code>.
+</td>
+<td>TTS Engine / Win32 UI</td>
+<td>Media</td>
+</tr>
+<tr>
+<td><strong>RF-10</strong></td>
+<td>
+<strong>Persistencia de Configuracion mediante config.ini.</strong> El sistema debe leer y escribir un archivo estructurado <code>config.ini</code> (formato INI estandar con secciones <code>[Hotkeys]</code>, <code>[TTS]</code>, <code>[Audio]</code>, <code>[General]</code>) que almacene: codigos de teclas virtuales (VK) y modificadores para cada atajo, voz seleccionada, nivel de velocidad, ruta de salida de grabaciones, y estado de habilitacion del modulo de grabacion.
+</td>
+<td>Config Persistence</td>
+<td>Media</td>
+</tr>
+<tr>
+<td><strong>RF-11</strong></td>
+<td>
+<strong>Reconfiguracion Dinamica de Atajos de Teclado.</strong> El sistema debe permitir, a traves del menu contextual, la modificacion de las combinaciones de teclas para cada funcion (copiar-escuchar, detener, repetir, toggle hook) persistiendo los nuevos valores VK y modificadores en <code>config.ini</code> y re-registrando los hotkeys mediante <code>UnregisterHotKey</code> / <code>RegisterHotKey</code> sin requerir reinicio de la aplicacion.
+</td>
+<td>Hotkey Manager / Config</td>
+<td>Media</td>
+</tr>
+<tr>
+<td><strong>RF-12</strong></td>
+<td>
+<strong>Modulo de Grabacion de Audio (Desactivado por Defecto).</strong> El sistema debe incluir un modulo de grabacion que, cuando este habilitado (configuracion <code>RecordingEnabled=0</code> por defecto), persista cada texto sintetizado como archivo de audio comprimido en formato AAC dentro de contenedor M4A (o WMA), utilizando Windows Media Foundation (<code>IMFSinkWriter</code> o topologia de codificacion ASF).
+</td>
+<td>Audio Logger</td>
+<td>Baja</td>
+</tr>
+<tr>
+<td><strong>RF-13</strong></td>
+<td>
+<strong>Nomenclatura ISO 8601 para Archivos de Grabacion.</strong> Los archivos de audio generados por el modulo de grabacion deben nombrarse estrictamente bajo la norma <code>YYYYMMDD-HHMMSS_TTS.m4a</code> (ej. <code>20260628-143052_TTS.m4a</code>), utilizando la hora local del sistema en el momento de la sintesis.
+</td>
+<td>Audio Logger</td>
+<td>Baja</td>
+</tr>
+<tr>
+<td><strong>RF-14</strong></td>
+<td>
+<strong>Instalador MSI Corporativo (WiX Toolset v4).</strong> El proyecto debe incluir un instalador MSI generado con WiX Toolset v4 que: instale los binarios en <code>ProgramFiles6432Folder</code> segun la arquitectura, cree la entrada de auto-arranque en <code>HKCU\Software\Microsoft\Windows\CurrentVersion\Run</code>, y proteja el archivo <code>config.ini</code> contra sobreescritura en reinstalaciones (componente con <code>NeverOverwrite="yes"</code>).
+</td>
+<td>Deployment</td>
+<td>Media</td>
+</tr>
+<tr>
+<td><strong>RF-15</strong></td>
+<td>
+<strong>Gestión de Cola de Reproducción.</strong> El sistema debe implementar una cola de reproducción para gestionar múltiples textos copiados secuencialmente. Mientras un texto se reproduce, los nuevos textos (mayores a 40 caracteres) se encolarán hasta un máximo de <strong>N</strong> elementos (configurable, por defecto 1).
+</td>
+<td>TTS Engine</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RF-16</strong></td>
+<td>
+<strong>Pausa y Reanudación (CTRL+2).</strong> El sistema debe registrar un hotkey global <code>CTRL+2</code> que permita pausar la reproducción actual. Al presionarlo nuevamente, debe reanudar la reproducción desde el mismo punto.
+</td>
+<td>Hotkey Manager</td>
+<td>Alta</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="req-nofunc">2. Requerimientos No Funcionales (RNF)</h2>
+
+<p>Los requerimientos no funcionales mitigan riesgos documentados en la literatura tecnica de Windows y garantizan la calidad del sistema.</p>
+
+<table>
+<caption data-label="Tabla 2">Requerimientos No Funcionales del Sistema</caption>
+<thead>
+<tr><th>ID</th><th>Requerimiento</th><th>Categoria</th><th>Prioridad</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>RNF-01</strong></td>
+<td>
+<strong>No Interferencia del Portapapeles.</strong> El sistema no debe bloquear, modificar ni interferir con el flujo nativo de <code>CTRL+C</code>. El diseno debe basarse exclusivamente en listeners pasivos (<code>AddClipboardFormatListener</code>) con un retardo asincrono controlado de ~50ms en un hilo secundario antes de invocar <code>OpenClipboard</code>, evitando bloqueos mutuos (deadlocks) con la aplicacion de origen.
+</td>
+<td>Concurrencia / Seguridad</td>
+<td>Critica</td>
+</tr>
+<tr>
+<td><strong>RNF-02</strong></td>
+<td>
+<strong>Bucle de Mensajes No Bloqueante (UI Thread Integrity).</strong> El motor TTS debe configurarse en modo asincrono nativo (<code>SPF_ASYNC</code>) de SAPI5 o ejecutarse en un hilo trabajador independiente (Worker Thread) para evitar que la reproduccion de textos extensos congele el procesamiento de los hotkeys globales (<code>WM_HOTKEY</code>) en el hilo principal de Win32. El tiempo de respuesta de los hotkeys no debe exceder 50ms bajo carga maxima.
+</td>
+<td>Concurrencia / Rendimiento</td>
+<td>Critica</td>
+</tr>
+<tr>
+<td><strong>RNF-03</strong></td>
+<td>
+<strong>Arquitectura de Tipos Seguros (x86/x64).</strong> Todo el codigo fuente debe utilizar tipos polimorficos de precision de puntero: <code>INT_PTR</code>, <code>LONG_PTR</code>, <code>WPARAM</code>, <code>LPARAM</code>, <code>UINT_PTR</code>, <code>DWORD_PTR</code>. Queda estrictamente prohibido el uso de tipos fijos de 32 bits (<code>DWORD</code>, <code>UINT</code>, <code>int</code>) para almacenar valores de puntero o handles, garantizando la compilacion cruzada limpia para arquitecturas x86 (32-bit) y x64 (64-bit).
+</td>
+<td>Portabilidad</td>
+<td>Critica</td>
+</tr>
+<tr>
+<td><strong>RNF-04</strong></td>
+<td>
+<strong>Gestion de Memoria Segura (RAII &amp; COM).</strong> Todo recurso COM debe gestionarse mediante punteros inteligentes: <code>CComPtr&lt;T&gt;</code> (ATL) o <code>winrt::com_ptr&lt;T&gt;</code> (C++/WinRT). Los handles de Windows (HWND, HMENU, HGLOBAL, etc.) deben liberarse mediante RAII custom (<code>auto_handle</code>, <code>unique_ptr</code> con deleter). Queda prohibido el uso de <code>new</code>/<code>delete</code> crudo para objetos COM; <code>CoCreateInstance</code> debe ir seguido inmediatamente de asignacion a <code>CComPtr</code>.
+</td>
+<td>Seguridad / Estabilidad</td>
+<td>Critica</td>
+</tr>
+<tr>
+<td><strong>RNF-05</strong></td>
+<td>
+<strong>Soporte Unicode Estricto.</strong> Toda API interna y externa procesara cadenas de caracteres anchos exclusivamente: <code>wchar_t</code>, <code>std::wstring</code>, <code>LPCWSTR</code>, <code>LPWSTR</code>. El proyecto debe compilarse con <code>UNICODE</code> y <code>_UNICODE</code> definidos. El formato de clipboard a utilizar es <code>CF_UNICODETEXT</code> (UTF-16LE). La configuracion INI debe codificarse en UTF-16LE con BOM o UTF-8 con BOM para soporte completo de eñes, tildes y diéresis del español.
+</td>
+<td>Internacionalizacion</td>
+<td>Critica</td>
+</tr>
+<tr>
+<td><strong>RNF-06</strong></td>
+<td>
+<strong>Manejo Robusto de Errores (Graceful Degradation).</strong> Toda funcion que invoque una API de Windows debe verificar el valor de retorno HRESULT / BOOL / HANDLE. En caso de error, el sistema debe: registrar el error en el log de depuracion (OutputDebugString), notificar al usuario mediante un tooltip transitorio del icono de bandeja (NOTIFYICONDATA con NIF_INFO), y continuar operando sin terminar el proceso.
+</td>
+<td>Fiabilidad</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RNF-07</strong></td>
+<td>
+<strong>Bajo Consumo de Recursos.</strong> La aplicacion en estado idle debe consumir menos de 10MB de memoria RAM y menos del 0.1% de CPU. El uso de polling esta prohibido; solo se permiten mecanismos basados en eventos (listeners, callbacks, mensajes de Windows).
+</td>
+<td>Eficiencia</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RNF-08</strong></td>
+<td>
+<strong>Compilacion Hibrida x86/x64.</strong> El proyecto Visual Studio debe configurarse con dos plataformas de compilacion: Win32 (x86) y x64. Las rutas de salida deben separarse: <code>$(SolutionDir)bin\$(Platform)\$(Configuration)\</code>. Los componentes COM deben registrarse segun la arquitectura del sistema destino (<code>regsvr32</code> de 32-bit para x86, de 64-bit para x64).
+</td>
+<td>Portabilidad / Despliegue</td>
+<td>Alta</td>
+</tr>
+<tr>
+<td><strong>RNF-09</strong></td>
+<td>
+<strong>Seguridad del Instalador.</strong> El instalador MSI debe: instalar sin privilegios de administrador (per-user install, <code>Package Scope="perUser"</code>), firmar digitalmente los binarios y el paquete MSI, proteger <code>config.ini</code> con el atributo <code>NeverOverwrite="yes"</code> para preservar la configuracion del usuario en actualizaciones, y registrar el auto-arranque en <code>HKCU</code> (no <code>HKLM</code>).
+</td>
+<td>Seguridad</td>
+<td>Media</td>
+</tr>
+<tr>
+<td><strong>RNF-10</strong></td>
+<td>
+<strong>Minima Interferencia Visual.</strong> La aplicacion no debe crear ninguna ventana principal visible. La unica interfaz de usuario permitida es el icono de la bandeja del sistema y sus menues contextuales. No se permiten ventanas de dialogo modales excepto para la reconfiguracion de atajos.
+</td>
+<td>Usabilidad</td>
+<td>Media</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="historias">3. Historias de Usuario y Criterios de Aceptacion BDD</h2>
+
+<h3>Historia de Usuario 1: Monitoreo de Portapapeles y Sintesis de Voz</h3>
+<div class="req-box">
+<strong>HU-01:</strong> "Como usuario con discapacidad visual que trabaja con documentos digitales, quiero que el sistema detecte automaticamente cuando copio texto con CTRL+C y lo reproduzca en voz alta, para poder escuchar el contenido sin necesidad de pegarlo en otra aplicacion."
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 1.1 - Deteccion y Sintesis Basica</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que la aplicacion esta en estado <em>Escuchando</em> y el portapapeles del sistema contiene texto plano previamente copiado<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario presiona <code>CTRL+C</code> en cualquier aplicacion y el sistema recibe <code>WM_CLIPBOARDUPDATE</code><br>
+<span class="bdd-then"><strong>Entonces</strong></span> el sistema extrae el texto del portapapeles en un hilo trabajador tras un retardo de 50ms, lo envia al motor SAPI5 con <code>SPF_ASYNC</code>, y la reproduccion de voz comienza dentro de los siguientes 500ms</p>
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 1.2 - No Interferencia con la Aplicacion Origen</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que el usuario esta trabajando en Microsoft Word con un documento grande abierto<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario copia texto repetidamente (mas de 50 veces en 10 segundos)<br>
+<span class="bdd-then"><strong>Entonces</strong></span> Word no experimenta bloqueos, congelamientos ni perdida de datos, y el portapapeles opera con flujo nativo ininterrumpido; el sistema procesa cada copia secuencialmente sin invocar <code>OpenClipboard</code> desde el hilo principal</p>
+</div>
+
+<h3>Historia de Usuario 2: Control Global de Detencion</h3>
+<div class="req-box">
+<strong>HU-02:</strong> "Como usuario que escucha textos largos sintetizados, quiero poder detener la reproduccion de voz instantaneamente con un atajo de teclado global, para interrumpir la lectura cuando ya haya obtenido la informacion que necesitaba."
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 2.1 - Detencion Inmediata</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que el sistema esta reproduciendo un texto de 5000 caracteres mediante SAPI5 en modo asincrono<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario presiona <code>CTRL+1</code> desde cualquier aplicacion (incluso cuando Clipboard TTS Monitor no tiene el foco)<br>
+<span class="bdd-then"><strong>Entonces</strong></span> la reproduccion de voz se detiene completamente dentro de los 50ms siguientes, el motor TTS queda en estado listo, y el sistema notifica mediante tooltip: "Reproduccion detenida"</p>
+</div>
+
+<h3>Historia de Usuario 3: Repeticion del Ultimo Texto Hablado</h3>
+<div class="req-box">
+<strong>HU-03:</strong> "Como usuario que necesita reescuchar informacion importante, quiero poder repetir el ultimo texto que fue sintetizado sin tener que volver a copiarlo del documento original, para ahorrar tiempo y esfuerzo."
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 3.1 - Repeticion desde Buffer Historico</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que el sistema ha sintetizado exitosamente el texto "El informe financiero muestra un crecimiento del 15%" y desde entonces el portapapeles ha cambiado a otro contenido diferente<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario presiona <code>CTRL+3</code><br>
+<span class="bdd-then"><strong>Entonces</strong></span> el sistema reproduce exactamente el texto "El informe financiero muestra un crecimiento del 15%" desde el bufer historico interno, ignorando el contenido actual del portapapeles, y muestra tooltip: "Reproduciendo ultimo texto"</p>
+</div>
+
+<h3>Historia de Usuario 4: Control de Estado del Hook</h3>
+<div class="req-box">
+<strong>HU-04:</strong> "Como usuario que necesita desactivar temporalmente el monitoreo para realizar copias privadas sin sintesis de voz, quiero poder activar y desactivar la escucha del portapapeles con un atajo, para mantener control sobre cuando el sistema opera."
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 4.1 - Toggle de Estado</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que la aplicacion esta en estado <em>Escuchando</em> (icono de bandeja en verde)<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario presiona <code>ALT+1</code><br>
+<span class="bdd-then"><strong>Entonces</strong></span> el sistema transiciona al estado <em>Inactivo</em>, cambia el icono de bandeja a gris, descarta todos los eventos <code>WM_CLIPBOARDUPDATE</code> subsiguientes sin procesarlos, y muestra tooltip: "Monitoreo desactivado"</p>
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 4.2 - Reactivacion</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que la aplicacion esta en estado <em>Inactivo</em><br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario presiona <code>ALT+1</code> nuevamente<br>
+<span class="bdd-then"><strong>Entonces</strong></span> el sistema transiciona al estado <em>Escuchando</em>, restaura el icono verde, y comienza a procesar nuevamente los eventos de portapapeles</p>
+</div>
+
+<h3>Historia de Usuario 5: Control de Velocidad de Reproduccion</h3>
+<div class="req-box">
+<strong>HU-05:</strong> "Como usuario que consume grandes volumenes de texto, quiero ajustar la velocidad de reproduccion de voz a 20 niveles distintos, desde muy lento hasta muy rapido, para adaptar la lectura a mi velocidad de comprension personal."
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 5.1 - Mapeo Lineal de Velocidades</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que el usuario abre el menu contextual del icono de bandeja y selecciona "Velocidad"<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario selecciona el nivel 10 (velocidad media)<br>
+<span class="bdd-then"><strong>Entonces</strong></span> el sistema calcula $Rate_{SAPI} = round((10-1) \times \frac{20}{19} - 10) = 0$, configura <code>ISpVoice::SetRate(0)</code>, persiste <code>SpeedLevel=10</code> en <code>config.ini</code>, y todas las reproducciones subsecuentes utilizan velocidad $1.0x$ (normal)</p>
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 5.2 - Persistencia entre Sesiones</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que el usuario configuro la velocidad en nivel 16 y cerro la aplicacion<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario reinicia la aplicacion<br>
+<span class="bdd-then"><strong>Entonces</strong></span> el sistema lee <code>SpeedLevel=16</code> de <code>config.ini</code>, calcula $Rate_{SAPI} = +6$, y aplica automaticamente la velocidad correspondiente a $1.76x$</p>
+</div>
+
+<h3>Historia de Usuario 6: Interfaz de Bandeja del Sistema</h3>
+<div class="req-box">
+<strong>HU-06:</strong> "Como usuario que valora la limpieza del escritorio, quiero que la aplicacion opere completamente en segundo plano sin ventanas visibles, controlandola unicamente desde un icono en la bandeja del sistema, para mantener mi espacio de trabajo ordenado."
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 6.1 - Ausencia de Ventana Principal</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que la aplicacion se ha iniciado correctamente<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario observa el escritorio de Windows<br>
+<span class="bdd-then"><strong>Entonces</strong></span> no existe ninguna ventana visible de Clipboard TTS Monitor en la barra de tareas ni en Alt+Tab; unicamente se observa un icono en la bandeja del sistema (area de notificacion)</p>
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 6.2 - Menu Contextual Completo</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que el icono de bandeja esta visible<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario hace clic derecho sobre el icono<br>
+<span class="bdd-then"><strong>Entonces</strong></span> aparece un menu contextual (<code>TrackPopupMenu</code>) con las siguientes opciones visibles: lista de voces instaladas (con checkmark en la activa), submenu "Velocidad" con 20 niveles, "Configurar Atajos...", "Grabacion [ON/OFF]", separador, y "Salir"</p>
+</div>
+
+<h3>Historia de Usuario 7: Grabacion de Audio</h3>
+<div class="req-box">
+<strong>HU-07:</strong> "Como usuario que necesita archivar contenido hablado para consultas futuras, quiero que el sistema pueda grabar automaticamente cada texto sintetizado como archivo de audio comprimido, para poder escucharlo posteriormente sin reconectar al sistema TTS."
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 7.1 - Grabacion Desactivada por Defecto</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que la aplicacion se instalo por primera vez<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el usuario verifica el menu contextual<br>
+<span class="bdd-then"><strong>Entonces</strong></span> la opcion "Grabacion" aparece como [OFF], no se crean archivos de audio en disco, y <code>config.ini</code> contiene <code>RecordingEnabled=0</code></p>
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 7.2 - Activacion y Nomenclatura</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que el usuario activo la grabacion desde el menu contextual y copio texto a las 14:30:52 del 28 de junio de 2026<br>
+<span class="bdd-when"><strong>Cuando</strong></span> el sistema sintetiza el texto y la reproduccion finaliza exitosamente<br>
+<span class="bdd-then"><strong>Entonces</strong></span> se genera un archivo <code>20260628-143052_TTS.m4a</code> en el directorio configurado, con codificacion AAC a 128kbps dentro de contenedor M4A, y el tamano del archivo es proporcional a la duracion del audio sintetizado</p>
+</div>
+
+<h3>Historia de Usuario 8: Instalacion y Persistencia</h3>
+<div class="req-box">
+<strong>HU-08:</strong> "Como administrador de sistemas que despliega herramientas en multiples estaciones de trabajo, quiero un instalador MSI corporativo que configure automaticamente el auto-arranque y proteja la configuracion del usuario, para minimizar el soporte tecnico requerido."
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 8.1 - Instalacion Silenciosa</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que se dispone del archivo MSI generado por WiX v4<br>
+<span class="bdd-when"><strong>Cuando</strong></span> se ejecuta <code>msiexec /i ClipboardTTSMonitor.msi /qn</code> en una estacion Windows 11 limpia<br>
+<span class="bdd-then"><strong>Entonces</strong></span> la aplicacion se instala en <code>%ProgramFiles%\ClipboardTTSMonitor\</code> (o <code>%ProgramFiles(x86)%</code> segun arquitectura), se crea la entrada <code>HKCU\Software\Microsoft\Windows\CurrentVersion\Run\ClipboardTTSMonitor</code> apuntando al ejecutable, y el icono aparece en la bandeja tras el siguiente inicio de sesion del usuario</p>
+</div>
+
+<div class="bdd-scenario">
+<div class="bdd-scenario-title">Criterio de Aceptacion 8.2 - Proteccion de Configuracion</div>
+<p><span class="bdd-given"><strong>Dado</strong></span> que el usuario ha personalizado atajos y velocidad, y <code>config.ini</code> existe en el directorio de instalacion<br>
+<span class="bdd-when"><strong>Cuando</strong></span> se ejecuta una actualizacion del instalador MSI (version superior)<br>
+<span class="bdd-then"><strong>Entonces</strong></span> el archivo <code>config.ini</code> del usuario se preserva intacto (no se sobreescribe), los nuevos binarios se actualizan correctamente, y la configuracion personalizada permanece activa</p>
+</div>
+
+
+
+<!-- ==================== PARTE B ==================== -->
+<div class="page-break"></div>
+<h1 id="part-b">PARTE B: Modelado Arquitectonico (Modelo 5+1)</h1>
+
+<p>El Modelo 5+1 de Kruchten adaptado para este proyecto proporciona seis vistas arquitectonicas que describen exhaustivamente la estructura, comportamiento, desarrollo, despliegue y ciclo de vida del sistema. Las vistas se representan mediante diagramas conceptuales en sintaxis Mermaid y descripciones estructuradas.</p>
+
+<h2 id="vista-escenarios">1. Vista de Escenarios (Casos de Uso)</h2>
+
+<p>La vista de escenarios describe la interaccion entre los actores externos (Usuario, Sistema Operativo) y el sistema Clipboard TTS Monitor. Los tres actores principales son: el <strong>Usuario Final</strong> (persona que interactua con atajos y menu), el <strong>Portapapeles del SO</strong> (sistema operativo Windows que notifica cambios), y el <strong>Subsistema de Audio</strong> (dispositivos de salida de audio del sistema).</p>
+
+<figure id="fig-1">
+<div class="mermaid">
+flowchart LR
+    subgraph ACTORES
+        U["👤 Usuario Final"]
+        CP["📋 Portapapeles del SO"]
+        AU["🔊 Subsistema de Audio"]
+    end
+    subgraph SISTEMA["Clipboard TTS Monitor"]
+        HM["Hotkey Manager"]
+        CL["Clipboard Listener"]
+        TT["TTS Engine"]
+        UI["Tray Icon UI"]
+        AL["Audio Logger"]
+    end
+
+    U -->|"CTRL+C"| CP
+    CP -->|"WM_CLIPBOARDUPDATE"| CL
+    U -->|"CTRL+1 / CTRL+3 / ALT+1"| HM
+    HM -->|"Detener / Repetir / Toggle"| TT
+    CL -->|"Texto extraido"| TT
+    TT -->|"Stream de audio"| AU
+    TT -->|"Muestras PCM"| AL
+    U -->|"Clic derecho"| UI
+    UI -->|"Seleccionar voz / velocidad"| TT
+    UI -->|"Activar grabacion"| AL
+    UI -->|"Reconfigurar atajos"| HM
+    UI -->|"Salir"| SISTEMA
+</div>
+<figcaption data-label="Figura 1">Diagrama de Casos de Uso - Interaccion entre actores y modulos del sistema</figcaption>
+</figure>
+
+<table>
+<caption data-label="Tabla 3">Actores y Casos de Uso del Sistema</caption>
+<thead>
+<tr><th>Actor</th><th>Caso de Uso</th><th>Descripcion</th><th>Flujo Principal</th></tr>
+</thead>
+<tbody>
+<tr>
+<td>Usuario Final</td>
+<td><strong>UC-01: Copiar y Escuchar</strong></td>
+<td>El usuario copia texto con CTRL+C y el sistema lo sintetiza</td>
+<td>1. Usuario selecciona texto y presiona CTRL+C<br>2. SO notifica WM_CLIPBOARDUPDATE<br>3. Sistema extrae texto tras 50ms<br>4. TTS reproduce asincronamente</td>
+</tr>
+<tr>
+<td>Usuario Final</td>
+<td><strong>UC-02: Detener Reproduccion</strong></td>
+<td>El usuario interrumpe la voz en curso</td>
+<td>1. Usuario presiona CTRL+1<br>2. Hotkey Manager recibe WM_HOTKEY<br>3. TTS Engine ejecuta Skip/Purge<br>4. Audio se detiene en &lt;50ms</td>
+</tr>
+<tr>
+<td>Usuario Final</td>
+<td><strong>UC-03: Repetir Ultimo Texto</strong></td>
+<td>El usuario reescucha el ultimo texto sintetizado</td>
+<td>1. Usuario presiona CTRL+3<br>2. Sistema recupera texto del buffer historico<br>3. TTS reproduce el texto almacenado<br>4. Portapapeles actual no se consulta</td>
+</tr>
+<tr>
+<td>Usuario Final</td>
+<td><strong>UC-04: Toggle Monitoreo</strong></td>
+<td>El usuario activa/desactiva la escucha del portapapeles</td>
+<td>1. Usuario presiona ALT+1<br>2. State Machine alterna estado<br>3. Icono de bandeja cambia visualmente<br>4. Eventos de clipboard se procesan/descartan</td>
+</tr>
+<tr>
+<td>Usuario Final</td>
+<td><strong>UC-05: Configurar Velocidad</strong></td>
+<td>El usuario ajusta la velocidad de reproduccion</td>
+<td>1. Usuario abre menu contextual<br>2. Selecciona nivel de 1 a 20<br>3. Sistema calcula Rate SAPI<br>4. Persiste en config.ini</td>
+</tr>
+<tr>
+<td>Usuario Final</td>
+<td><strong>UC-06: Seleccionar Voz</strong></td>
+<td>El usuario elige entre voces TTS instaladas</td>
+<td>1. Usuario abre menu contextual<br>2. Sistema enumera voces SAPI5<br>3. Usuario selecciona voz deseada<br>4. TTS Engine invoca SetVoice()</td>
+</tr>
+<tr>
+<td>Usuario Final</td>
+<td><strong>UC-07: Configurar Atajos</strong></td>
+<td>El usuario personaliza combinaciones de teclas</td>
+<td>1. Usuario selecciona "Configurar Atajos"<br>2. Dialogo captura nueva combinacion<br>3. Sistema desregistra atajos antiguos<br>4. Registra nuevos y persiste en INI</td>
+</tr>
+<tr>
+<td>Usuario Final</td>
+<td><strong>UC-08: Controlar Grabacion</strong></td>
+<td>El usuario activa/desactiva grabacion de audio</td>
+<td>1. Usuario selecciona "Grabacion [OFF]"<br>2. Sistema cambia estado a ON<br>3. Grabaciones posteriores se guardan<br>4. Archivos nombrados ISO 8601</td>
+</tr>
+<tr>
+<td>SO / Portapapeles</td>
+<td><strong>UC-09: Notificar Cambio de Clipboard</strong></td>
+<td>El SO informa al sistema de cambios en el portapapeles</td>
+<td>1. Aplicacion externa ejecuta SetClipboardData<br>2. SO difunde WM_CLIPBOARDUPDATE<br>3. Clipboard Listener recibe notificacion<br>4. Sistema encola procesamiento async</td>
+</tr>
+<tr>
+<td>Subsistema de Audio</td>
+<td><strong>UC-10: Reproducir Stream de Voz</strong></td>
+<td>El sistema envia audio al dispositivo de salida</td>
+<td>1. TTS Engine genera muestras PCM<br>2. SAPI5 envia a dispositivo default<br>3. AudioLogger intercepta si esta activo<br>4. Usuario escucha la sintesis</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="vista-logica">2. Vista Logica</h2>
+
+<p>La vista logica describe la descomposicion modular del software en cinco modulos funcionales principales, cada uno con responsabilidad unica y interfaces bien definidas. La comunicacion entre modulos se realiza exclusivamente mediante interfaces programaticas; no se permite acceso directo a datos internos.</p>
+
+<figure id="fig-2">
+<div class="mermaid">
+flowchart LR
+    subgraph PRES["Capa de Presentacion"]
+        UI["TrayIconModule<br/>(NOTIFYICONDATA,<br/>TrackPopupMenu,<br/>WndProc)"]
+    end
+    subgraph CORE["Capa de Negocio / Core"]
+        HM["HotkeyManager<br/>(RegisterHotKey,<br/>WM_HOTKEY,<br/>Virtual Key Codes)"]
+        SM["StateMachine<br/>(Inactiva|Escuchando|<br/>Hablando|Suspendida)"]
+        CL["ClipboardListener<br/>(AddClipboardFormatListener,<br/>WM_CLIPBOARDUPDATE,<br/>Anti-Deadlock Backoff)"]
+        TT["TTSEngine<br/>(ISpVoice, SPF_ASYNC,<br/>ISpObjectToken,<br/>SetRate, SetVoice)"]
+        HI["HistoryBuffer<br/>(Circular LIFO,<br/>std::wstring,<br/>mutex)"]
+    end
+    subgraph DATA["Capa de Datos / Persistencia"]
+        CP["ConfigManager<br/>(config.ini,<br/>GetPrivateProfileString,<br/>WritePrivateProfileString)"]
+        AL["AudioLogger<br/>(IMFSinkWriter,<br/>AAC/M4A,<br/>ISO 8601 naming)"]
+    end
+
+    UI -->|"Configurar atajos"| HM
+    UI -->|"Seleccionar voz/velocidad"| TT
+    UI -->|"Activar grabacion"| AL
+    UI -->|"Toggle hook"| SM
+    HM -->|"WM_HOTKEY events"| SM
+    SM -->|"Enable/Disable"| CL
+    CL -->|"Texto extraido"| TT
+    TT -->|"Texto sintetizado"| HI
+    TT -->|"Stream PCM"| AL
+    HM -->|"CTRL+3 -> Repetir"| HI
+    CP -->|"Cargar configuracion"| HM
+    CP -->|"Cargar configuracion"| TT
+    CP -->|"Cargar configuracion"| AL
+    CP -->|"Cargar configuracion"| SM
+</div>
+<figcaption data-label="Figura 2">Diagrama de Modulos - Vista Logica de la Arquitectura en Capas</figcaption>
+</figure>
+
+<h3>2.1 Descripcion de Modulos</h3>
+
+<h4>Modulo 1: TrayIconModule (Win32 UI)</h4>
+<div class="definition">
+<span class="definition-title">Responsabilidad:</span> Gestionar el icono de la bandeja del sistema, sus tooltips, y el menu contextual (<code>TrackPopupMenu</code>). No contiene logica de negocio; actua como puente entre el usuario y los modulos core.
+</div>
+<table>
+<thead><tr><th>Aspecto</th><th>Definicion</th></tr></thead>
+<tbody>
+<tr><td><strong>API Principal</strong></td><td><code>Shell_NotifyIcon</code>, <code>TrackPopupMenu</code>, <code>LoadIconMetric</code>, <code>DestroyMenu</code></td></tr>
+<tr><td><strong>Estructura Clave</strong></td><td><code>NOTIFYICONDATA</code> con <code>NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID</code></td></tr>
+<tr><td><strong>Mensaje Custom</strong></td><td><code>WM_TRAYICON = WM_USER + 1</code> (maneja WM_LBUTTONUP, WM_RBUTTONUP)</td></tr>
+<tr><td><strong>Registro Explorador</strong></td><td><code>RegisterWindowMessage(L"TaskbarCreated")</code> para recrear icono tras crash de explorer.exe</td></tr>
+<tr><td><strong>Dependencias</strong></td><td>HotkeyManager, TTSEngine, ConfigManager, AudioLogger (para queries de estado)</td></tr>
+</tbody>
+</table>
+
+<h4>Modulo 2: ClipboardListener</h4>
+<div class="definition">
+<span class="definition-title">Responsabilidad:</span> Recibir notificaciones de cambio del portapapeles mediante listener pasivo, extraer el texto de forma asincrona con retardo anti-deadlock, y entregarlo al TTSEngine. Nunca bloquea el portapapeles de forma persistente.
+</div>
+<table>
+<thead><tr><th>Aspecto</th><th>Definicion</th></tr></thead>
+<tbody>
+<tr><td><strong>API Principal</strong></td><td><code>AddClipboardFormatListener</code>, <code>RemoveClipboardFormatListener</code>, <code>OpenClipboard</code>, <code>GetClipboardData(CF_UNICODETEXT)</code>, <code>CloseClipboard</code></td></tr>
+<tr><td><strong>Mensaje Windows</strong></td><td><code>WM_CLIPBOARDUPDATE</code></td></tr>
+<tr><td><strong>Hilo de Ejecucion</strong></td><td>Worker Thread con <code>CreateThread</code> / <code>std::thread</code>; el retardo de 50ms se aplica via <code>Sleep(50)</code> o <code>WaitForSingleObject</code> con timer</td></tr>
+<tr><td><strong>Mutex de Proteccion</strong></td><td><code>std::mutex</code> para serializar accesos concurrentes al portapapeles; timeout de 500ms para evitar bloqueo indefinido</td></tr>
+<tr><td><strong>Dependencias</strong></td><td>TTSEngine (entrega texto), StateMachine (consulta si esta Escuchando)</td></tr>
+</tbody>
+</table>
+
+<h4>Modulo 3: TTSEngine</h4>
+<div class="definition">
+<span class="definition-title">Responsabilidad:</span> Sintetizar texto a voz mediante SAPI5 (<code>ISpVoice</code>), gestionar la seleccion de voces, controlar la velocidad de reproduccion, y notificar al HistoryBuffer cuando una sintesis se completa. Opera exclusivamente en modo asincrono.
+ Gestiona internamente la cola de reproducción (<code>m_textQueue</code>) y el estado de pausa, capturando eventos SAPI (<code>WM_APP_TTS_EVENT</code> / <code>SPEI_END_INPUT_STREAM</code>) para pasar automáticamente al siguiente elemento.</div>
+<table>
+<thead><tr><th>Aspecto</th><th>Definicion</th></tr></thead>
+<tbody>
+<tr><td><strong>API Principal</strong></td><td><code>ISpVoice::Speak</code> (con SPF_ASYNC), <code>ISpVoice::SetVoice</code>, <code>ISpVoice::SetRate</code>, <code>ISpVoice::Skip</code>, <code>ISpVoice::Speak(NULL, SPF_PURGEBEFORESPEAK)</code>, <code>SpEnumTokens</code></td></tr>
+<tr><td><strong>Eventos SAPI</strong></td><td><code>WM_APP_TTS_EVENT</code>, <code>SPEI_END_INPUT_STREAM</code></td></tr>
+<tr><td><strong>Bandera Asincrona</strong></td><td><code>SPF_ASYNC | SPF_IS_NOT_XML</code> (o SPF_DEFAULT si se requiere parsing XML de SAPI)</td></tr>
+<tr><td><strong>Notificacion de Completado</strong></td><td><code>ISpNotifySink</code> o polling con <code>ISpVoice::WaitUntilDone(0)</code> en timer del hilo principal; el completado dispara el almacenamiento en HistoryBuffer</td></tr>
+<tr><td><strong>Mapeo de Velocidad</strong></td><td>$Rate_{SAPI} = round((nivel - 1) \times \frac{20}{19} - 10)$, donde $nivel \in [1, 20]$ produce $Rate \in [-10, +10]$</td></tr>
+<tr><td><strong>Dependencias</strong></td><td>HistoryBuffer (almacena texto hablado), AudioLogger (recibe stream PCM si grabacion activa)</td></tr>
+</tbody>
+</table>
+
+<h4>Modulo 4: AudioLogger</h4>
+<div class="definition">
+<span class="definition-title">Responsabilidad:</span> Capturar el stream de audio PCM generado por SAPI5, codificarlo a AAC mediante Windows Media Foundation, y persistirlo en contenedor M4A con nomenclatura ISO 8601. El modulo esta desactivado por defecto y no afecta el rendimiento cuando esta inactivo.
+</div>
+<table>
+<thead><tr><th>Aspecto</th><th>Definicion</th></tr></thead>
+<tbody>
+<tr><td><strong>API Principal</strong></td><td><code>MFCreateSinkWriterFromURL</code>, <code>IMFSinkWriter::BeginWriting</code>, <code>IMFSinkWriter::WriteSample</code>, <code>IMFSinkWriter::Finalize</code></td></tr>
+<tr><td><strong>Formato de Salida</strong></td><td>AAC (MFAudioFormat_AAC) dentro de contenedor M4A/MP4 a 128kbps, 44100Hz, stereo</td></tr>
+<tr><td><strong>Intercepcion de Audio</strong></td><td>Via <code>ISpVoice::SetOutput(cpStream, TRUE)</code> con un <code>ISpStream</code> Tee que bifurca hacia el dispositivo de audio y hacia el AudioLogger simultaneamente; alternativa: captura directa desde <code>IMFSourceReader</code> del endpoint de audio</td></tr>
+<tr><td><strong>Nomenclatura</strong></td><td><code>YYYYMMDD-HHMMSS_TTS.m4a</code> generada via <code>GetLocalTime</code> + <code>swprintf_s</code></td></tr>
+<tr><td><strong>Dependencias</strong></td><td>ConfigManager (lee RecordingEnabled y OutputPath)</td></tr>
+</tbody>
+</table>
+
+<h4>Modulo 5: ConfigManager</h4>
+<div class="definition">
+<span class="definition-title">Responsabilidad:</span> Leer y escribir la configuracion persistente en <code>config.ini</code>, proporcionar valores por defecto para todas las claves, y notificar a los modulos suscriptores cuando una configuracion cambia en tiempo de ejecucion.
+</div>
+<table>
+<thead><tr><th>Aspecto</th><th>Definicion</th></tr></thead>
+<tbody>
+<tr><td><strong>API Principal</strong></td><td><code>GetPrivateProfileString</code>, <code>GetPrivateProfileInt</code>, <code>WritePrivateProfileString</code></td></tr>
+<tr><td><strong>Ubicacion del INI</strong></td><td><code>%APPDATA%\ClipboardTTSMonitor\config.ini</code> (per-user, no requiere permisos de administrador)</td></tr>
+<tr><td><strong>Codificacion</strong></td><td>UTF-16LE con BOM para soporte completo de caracteres Unicode (eñes, tildes)</td></tr>
+<tr><td><strong>Secciones</strong></td><td><code>[Hotkeys]</code>, <code>[TTS]</code>, <code>[Audio]</code>, <code>[General]</code></td></tr>
+<tr><td><strong>Thread Safety</strong></td><td><code>std::shared_mutex</code> ( lectura concurrente, escritura exclusiva)</td></tr>
+<tr><td><strong>Nuevas Configuraciones</strong></td><td>Límite de la cola (N) persistido, nuevos atajos (CTRL+1, ALT+1, CTRL+2) persistidos.</td></tr></tbody>
+</table>
+
+<h4>Modulo 6: HotkeyManager</h4>
+<div class="definition">
+<span class="definition-title">Responsabilidad:</span> Registrar y gestionar atajos de teclado globales del sistema mediante <code>RegisterHotKey</code>, despachar los eventos <code>WM_HOTKEY</code> al modulo correspondiente, y soportar reconfiguracion dinamica sin reinicio.
+</div>
+<table>
+<thead><tr><th>Aspecto</th><th>Definicion</th></tr></thead>
+<tbody>
+<tr><td><strong>API Principal</strong></td><td><code>RegisterHotKey</code>, <code>UnregisterHotKey</code>, <code>GlobalAddAtom</code>, <code>GlobalDeleteAtom</code></td></tr>
+<tr><td><strong>IDs de Hotkey</strong></td><td>Atoms generados con <code>GlobalAddAtom</code>: <code>HOTKEY_COPY_TRIGGER=1</code>, <code>HOTKEY_STOP=2</code>, <code>HOTKEY_REPEAT=3</code>, <code>HOTKEY_TOGGLE=4</code></td></tr>
+<tr><td><strong>Mapeo por Defecto</strong></td><td>CTRL+C (listener pasivo, no hotkey), CTRL+1 (detener), CTRL+3 (repetir), ALT+1 (toggle hook)</td></tr>
+<tr><td><strong>Reconfiguracion</strong></td><td><code>UnregisterHotKey</code> todos → actualizar VK/modificadores en ConfigManager → <code>RegisterHotKey</code> con nuevos valores</td></tr>
+<tr><td><strong>Dependencias</strong></td><td>ConfigManager (lee VK codes y modificadores), StateMachine (CTRL+C toggle), TTSEngine (detener, repetir)</td></tr>
+</tbody>
+</table>
+
+<h2 id="vista-procesos">3. Vista de Procesos</h2>
+
+<p>La vista de procesos describe la sincronizacion de hilos, el flujo de mensajes asincronos, y la secuencia temporal de operaciones criticas. El sistema opera con tres hilos principales: <strong>Hilo Principal</strong> (bucle de mensajes Win32), <strong>Hilo de Clipboard</strong> (Worker Thread para extraccion anti-deadlock), y <strong>Hilo de TTS</strong> (para sintesis asincrona y monitoreo de completado).</p>
+
+<h3>3.1 Diagrama de Secuencia: Extraccion y Sintesis de Texto</h3>
+
+<figure id="fig-3">
+<div class="mermaid">
+sequenceDiagram
+    participant User
+    participant App as App (Hilo Principal)
+    participant CL as ClipboardListener
+    participant WT as Worker Thread
+    participant TT as TTSEngine
+    participant SO as SAPI5 / ISpVoice
+    participant HI as HistoryBuffer
+
+    User->>App: CTRL+C (en app externa)
+    Note over App: Aplicacion origen ejecuta<br/>SetClipboardData()
+    SO-->>App: WM_CLIPBOARDUPDATE
+    App->>CL: OnClipboardUpdate()
+    CL->>CL: if (estado != Escuchando) return
+    CL->>WT: CreateThread(ExtractTextAsync)
+    Note over WT: Anti-Deadlock Backoff
+    WT->>WT: Sleep(50ms)
+    WT->>SO: OpenClipboard(NULL)
+    WT->>SO: GetClipboardData(CF_UNICODETEXT)
+    SO-->>WT: HGLOBAL hData
+    WT->>SO: GlobalLock(hData)
+    SO-->>WT: LPCWSTR pszText
+    WT->>WT: std::wstring text(pszText)
+    WT->>SO: GlobalUnlock(hData)
+    WT->>SO: CloseClipboard()
+    WT->>App: PostMessage(WM_APP_CLIPBOARD_TEXT)
+    App->>TT: Speak(text)
+    TT->>SO: ISpVoice::Speak(text, SPF_ASYNC)
+    SO-->>App: (retorna inmediatamente)
+    Note over SO: Sintesis en hilo SAPI interno
+    SO-->>TT: SPEI_START event
+    TT->>App: Estado: Hablando
+    Note over App: Bucle de mensajes sigue<br/>procesando WM_HOTKEY
+    SO-->>TT: SPEI_END event
+    TT->>HI: Store(text)
+    TT->>App: Estado: Escuchando
+</div>
+<figcaption data-label="Figura 3">Diagrama de Secuencia - Flujo completo desde CTRL+C hasta almacenamiento en historico</figcaption>
+</figure>
+
+<h3>3.2 Diagrama de Secuencia: Detencion de Voz</h3>
+
+<figure id="fig-4">
+<div class="mermaid">
+sequenceDiagram
+    participant User
+    participant App as Hilo Principal (WndProc)
+    participant HM as HotkeyManager
+    participant TT as TTSEngine
+    participant SO as SAPI5 / ISpVoice
+
+    User->>App: CTRL+1 (global)
+    Note over App: Windows envia WM_HOTKEY<br/>a la cola de mensajes
+    App->>HM: OnHotKey(HOTKEY_STOP)
+    HM->>TT: StopSpeaking()
+    alt Metodo A: Skip
+        TT->>SO: ISpVoice::Skip(L"SENTENCE", INT_MAX)
+    else Metodo B: Purge
+        TT->>SO: Speak(NULL, SPF_PURGEBEFORESPEAK, NULL)
+    end
+    SO-->>TT: S_OK (voz detenida)
+    TT->>App: Estado: Escuchando
+    App->>App: Shell_NotifyIcon(NIM_MODIFY, tooltip="Detenido")
+</div>
+<figcaption data-label="Figura 4">Diagrama de Secuencia - Detencion inmediata de reproduccion con CTRL+1</figcaption>
+</figure>
+
+<h3>3.3 Modelo de Concurrencia y Sincronizacion</h3>
+
+<table>
+<caption data-label="Tabla 4">Hilos del Sistema y Mecanismos de Sincronizacion</caption>
+<thead>
+<tr><th>Hilo</th><th>Responsabilidad</th><th>Mecanismo de Sync</th><th>Cola de Mensajes</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Hilo Principal (UI)</strong></td>
+<td>Bucle de mensajes Win32: <code>GetMessage/DispatchMessage</code>. Procesa WM_HOTKEY, WM_CLIPBOARDUPDATE, WM_TRAYICON, WM_APP_*</td>
+<td>N/A (single-threaded para UI)</td>
+<td>Cola de mensajes del thread (<code>MSG</code>)</td>
+</tr>
+<tr>
+<td><strong>Worker Thread (Clipboard)</strong></td>
+<td>Extraccion de texto del portapapeles con retardo anti-deadlock de 50ms</td>
+<td><code>CreateThread</code> + <code>PostMessage</code> al hilo principal para entregar resultado</td>
+<td>Ninguna (procesamiento directo)</td>
+</tr>
+<tr>
+<td><strong>Timer Thread (TTS Monitor)</strong></td>
+<td>Monitoreo de estado de sintesis mediante <code>WaitUntilDone(0)</code> o <code>ISpNotifySink</code></td>
+<td><code>SetTimer</code> con callback en hilo principal, o <code>CreateThread</code> con <code>WaitForSingleObject</code> sobre evento SAPI</td>
+<td>Evento <code>SPEI_END</code> via <code>ISpEventSource</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="algorithm">
+<div class="alg-title">Algoritmo: Extraccion Anti-Deadlock del Portapapeles</div>
+<pre><code>// Ejecutado en Worker Thread
+void ClipboardListener::ExtractTextAsync() {
+    // PASO 1: Retardo anti-deadlock
+    Sleep(50);  // Permite que la app origen libere el clipboard
+    
+    // PASO 2: Intentar abrir clipboard con timeout
+    for (int attempt = 0; attempt &lt; 5; ++attempt) {
+        if (OpenClipboard(NULL)) {
+            break;
+        }
+        Sleep(5);  // Backoff incremental
+    }
+    
+    // PASO 3: Verificar formato disponible
+    if (!IsClipboardFormatAvailable(CF_UNICODETEXT)) {
+        CloseClipboard();
+        return;
+    }
+    
+    // PASO 4: Extraer datos
+    HANDLE hData = GetClipboardData(CF_UNICODETEXT);
+    if (hData == NULL) { CloseClipboard(); return; }
+    
+    LPCWSTR pszText = static_cast&lt;LPCWSTR&gt;(GlobalLock(hData));
+    if (pszText == NULL) { CloseClipboard(); return; }
+    
+    // PASO 5: Copiar a buffer propio (wchar_t / std::wstring)
+    std::wstring text(pszText);
+    
+    GlobalUnlock(hData);
+    CloseClipboard();
+    
+    // PASO 6: Entregar al hilo principal via PostMessage
+    PostMessage(g_hMainWnd, WM_APP_CLIPBOARD_TEXT, 0, 
+                reinterpret_cast&lt;LPARAM&gt;(new std::wstring(text)));
+}</code></pre>
+</div>
+
+<h2 id="vista-desarrollo">4. Vista de Desarrollo</h2>
+
+<p>La vista de desarrollo define la estructura fisica del espacio de trabajo en el entorno de desarrollo (Antigravity IDE / Visual Studio 2022), organizando headers, fuentes, recursos, y archivos de configuracion del proyecto.</p>
+
+<figure id="fig-5">
+<div class="mermaid">
+flowchart TB
+    subgraph ROOT["ClipboardTTSMonitor/"]
+        SLN["ClipboardTTSMonitor.sln"]
+        README["README.md"]
+        CURSOR[".cursorrules"]
+        subgraph SRC["src/"]
+            subgraph MAIN["main/"]
+                MAIN_CPP["main.cpp"]
+                APP_H["Application.h"]
+                APP_CPP["Application.cpp"]
+            end
+            subgraph UI["ui/"]
+                TRAY_H["TrayIcon.h"]
+                TRAY_CPP["TrayIcon.cpp"]
+                MENU_H["ContextMenu.h"]
+                MENU_CPP["ContextMenu.cpp"]
+            end
+            subgraph CORE["core/"]
+                HM_H["HotkeyManager.h"]
+                HM_CPP["HotkeyManager.cpp"]
+                CL_H["ClipboardListener.h"]
+                CL_CPP["ClipboardListener.cpp"]
+                SM_H["StateMachine.h"]
+                SM_CPP["StateMachine.cpp"]
+            end
+            subgraph TTS["tts/"]
+                TTS_H["TTSEngine.h"]
+                TTS_CPP["TTSEngine.cpp"]
+                VB_H["VoiceEnumerator.h"]
+                VB_CPP["VoiceEnumerator.cpp"]
+            end
+            subgraph AUDIO["audio/"]
+                AL_H["AudioLogger.h"]
+                AL_CPP["AudioLogger.cpp"]
+                AAC_H["AACEncoder.h"]
+                AAC_CPP["AACEncoder.cpp"]
+            end
+            subgraph CONFIG["config/"]
+                CFG_H["ConfigManager.h"]
+                CFG_CPP["ConfigManager.cpp"]
+            end
+            subgraph UTILS["utils/"]
+                STR_H["StringUtils.h"]
+                STR_CPP["StringUtils.cpp"]
+                RAII_H["RaiiWrappers.h"]
+            end
+        end
+        subgraph RES["res/"]
+            RC["resources.rc"]
+            ICO["app.ico"]
+            MAN["app.manifest"]
+        end
+        subgraph INC["include/"]
+            PCH["pch.h / stdafx.h"]
+            TARGET["targetver.h"]
+        end
+        subgraph WIX["installer/"]
+            PKG["Package.wxs"]
+            COMP["Components.wxs"]
+            DIRS["Directories.wxs"]
+        end
+        subgraph TESTS["tests/"]
+            TST_MAIN["test_main.cpp"]
+            TST_TTS["test_tts.cpp"]
+            TST_CFG["test_config.cpp"]
+        end
+    end
+</div>
+<figcaption data-label="Figura 5">Arbol de Directorios - Estructura del Espacio de Trabajo</figcaption>
+</figure>
+
+<h3>4.1 Tabla de Archivos y Responsabilidades</h3>
+
+<table>
+<caption data-label="Tabla 5">Especificacion de Archivos Fuente y Headers</caption>
+<thead>
+<tr><th>Archivo</th><th>Tipo</th><th>Modulo</th><th>Responsabilidad</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><code>main.cpp</code></td>
+<td>Fuente</td>
+<td>Entry Point</td>
+<td><code>WinMain</code>: inicializa COM, crea ventana oculta de mensajes, inicia bucle <code>GetMessage</code>, limpieza al salir</td>
+</tr>
+<tr>
+<td><code>Application.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>Core</td>
+<td>Clase <code>CApplication</code>: orquestador principal que coordina todos los modulos, maneja <code>WndProc</code> central</td>
+</tr>
+<tr>
+<td><code>TrayIcon.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>Win32 UI</td>
+<td>Clase <code>CTrayIcon</code>: gestion de <code>NOTIFYICONDATA</code>, <code>Shell_NotifyIcon</code>, tooltip, manejo de <code>WM_TRAYICON</code></td>
+</tr>
+<tr>
+<td><code>ContextMenu.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>Win32 UI</td>
+<td>Clase <code>CContextMenu</code>: construccion dinamica del menu (<code>CreatePopupMenu</code>, <code>AppendMenu</code>), submenus de voces y velocidad</td>
+</tr>
+<tr>
+<td><code>HotkeyManager.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>Core</td>
+<td>Clase <code>CHotkeyManager</code>: <code>RegisterHotKey</code>/<code>UnregisterHotKey</code>, mapeo de IDs a funciones, reconfiguracion dinamica</td>
+</tr>
+<tr>
+<td><code>ClipboardListener.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>Core</td>
+<td>Clase <code>CClipboardListener</code>: <code>AddClipboardFormatListener</code>, worker thread con Sleep(50), extraccion CF_UNICODETEXT</td>
+</tr>
+<tr>
+<td><code>StateMachine.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>Core</td>
+<td>Clase <code>CStateMachine</code>: enum <code>EAppState</code>, transiciones de estados, notificacion de cambios</td>
+</tr>
+<tr>
+<td><code>TTSEngine.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>TTS</td>
+<td>Clase <code>CTTSEngine</code>: encapsula <code>ISpVoice</code>, <code>Speak</code> async, <code>SetRate</code>, <code>SetVoice</code>, eventos SAPI</td>
+</tr>
+<tr>
+<td><code>VoiceEnumerator.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>TTS</td>
+<td>Clase <code>CVoiceEnumerator</code>: <code>SpEnumTokens(SPCAT_VOICES)</code>, filtrado de voces instaladas, metadata (nombre, idioma, genero)</td>
+</tr>
+<tr>
+<td><code>AudioLogger.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>Audio</td>
+<td>Clase <code>CAudioLogger</code>: habilitacion/deshabilitacion, gestion de archivos de salida, coordina con AACEncoder</td>
+</tr>
+<tr>
+<td><code>AACEncoder.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>Audio</td>
+<td>Clase <code>CAACEncoder</code>: <code>IMFSinkWriter</code>, configuracion de media type AAC, escritura de muestras, finalizacion</td>
+</tr>
+<tr>
+<td><code>ConfigManager.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>Config</td>
+<td>Clase <code>CConfigManager</code>: lectura/escritura INI, valores por defecto, notificacion de cambios, paths per-user</td>
+</tr>
+<tr>
+<td><code>StringUtils.h/cpp</code></td>
+<td>Fuente+Header</td>
+<td>Utils</td>
+<td>Funciones auxiliares: <code>Utf8ToWide</code>, <code>WideToUtf8</code>, <code>FormatIso8601</code>, sanitizacion de filenames</td>
+</tr>
+<tr>
+<td><code>RaiiWrappers.h</code></td>
+<td>Header</td>
+<td>Utils</td>
+<td>Wrappers RAII: <code>AutoGlobalLock</code>, <code>AutoClipboard</code>, <code>AutoComInitialize</code>, custom deleters para <code>unique_ptr</code></td>
+</tr>
+<tr>
+<td><code>resources.rc</code></td>
+<td>Recurso</td>
+<td>Win32 UI</td>
+<td>Icono de aplicacion (IDI_APPICON), menu templates, tabla de cadenas (IDS_*)</td>
+</tr>
+<tr>
+<td><code>app.manifest</code></td>
+<td>Manifesto</td>
+<td>Deployment</td>
+<td>Declaracion de compatibilidad con Windows 10/11, DPI awareness (per monitor), executionLevel="asInvoker"</td>
+</tr>
+</tbody>
+</table>
+
+<h3>4.2 Reglas de Dependencia Entre Modulos</h3>
+
+<div class="req-box-alt">
+<strong>Regla de Dependencias (Aciclicidad Estricta):</strong> El grafo de dependencias entre modulos debe ser un DAG (Directed Acyclic Graph). Las dependencias permitidas son:
+<ul>
+<li><code>main</code> → <code>core</code>, <code>ui</code>, <code>tts</code>, <code>config</code>, <code>utils</code></li>
+<li><code>ui</code> → <code>core</code>, <code>tts</code>, <code>audio</code>, <code>config</code> (solo para queries de estado)</li>
+<li><code>core</code> → <code>tts</code>, <code>config</code>, <code>utils</code></li>
+<li><code>tts</code> → <code>audio</code> (solo para entregar stream PCM), <code>utils</code></li>
+<li><code>audio</code> → <code>config</code>, <code>utils</code></li>
+<li><code>config</code> → <code>utils</code> (solo StringUtils)</li>
+<li><code>utils</code> → (ninguno - modulo hoja)</li>
+</ul>
+<strong>Prohibido:</strong> Dependencias inversas (ej. <code>tts</code> → <code>ui</code>), dependencias circulares, o acceso directo a modulos no declarados.
+</div>
+
+<h2 id="vista-despliegue">5. Vista de Despliegue</h2>
+
+<p>La vista de despliegue describe el flujo fisico de compilacion, empaquetado e instalacion del sistema en estaciones de trabajo Windows 11, utilizando el WiX Toolset v4 para la generacion del instalador MSI.</p>
+
+<figure id="fig-6">
+<div class="mermaid">
+flowchart LR
+    subgraph DEV["Entorno de Desarrollo"]
+        VS["Visual Studio 2022<br/>MSBuild v17"]
+        WIX["WiX Toolset v4<br/>wix.exe CLI"]
+    end
+    subgraph BUILD["Pipeline de Build"]
+        C32["Compilacion x86<br/>Win32 / Release"]
+        C64["Compilacion x64<br/>x64 / Release"]
+        LINK["Linkado + Manifest"]
+        MSI["Generacion MSI<br/>candle + light"]
+    end
+    subgraph TARGET["Estacion Destino"]
+        PF["ProgramFiles6432Folder<br/>ClipboardTTSMonitor/"]
+        INI["%APPDATA%/<br/>ClipboardTTSMonitor/<br/>config.ini"]
+        REG["HKCU/Run<br/>Auto-arranque"]
+        TRAY["Bandeja del Sistema"]
+    end
+
+    VS -->|"Plataforma=Win32"| C32
+    VS -->|"Plataforma=x64"| C64
+    C32 -->|".obj + .res"| LINK
+    C64 -->|".obj + .res"| LINK
+    LINK -->|".exe + .dll"| MSI
+    WIX -->|"Package.wxs<br/>Components.wxs"| MSI
+    MSI -->|"ClipboardTTSMonitor.msi"| PF
+    MSI -->|"NeverOverwrite"| INI
+    MSI -->|"RegistryValue"| REG
+    PF --> TRAY
+</div>
+<figcaption data-label="Figura 6">Diagrama de Despliegue - Pipeline de Compilacion e Instalacion</figcaption>
+</figure>
+
+<h3>5.1 Pipeline de Compilacion (MSBuild)</h3>
+
+<div class="algorithm">
+<div class="alg-title">Pipeline de Build para x86 y x64</div>
+<pre><code># Compilacion para x86 (32-bit)
+msbuild ClipboardTTSMonitor.sln /p:Configuration=Release /p:Platform=Win32
+  Output: bin/Win32/Release/ClipboardTTSMonitor.exe
+
+# Compilacion para x64 (64-bit)
+msbuild ClipboardTTSMonitor.sln /p:Configuration=Release /p:Platform=x64
+  Output: bin/x64/Release/ClipboardTTSMonitor.exe
+
+# Firma digital de binarios (requiere certificado)
+signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com \
+  bin/$(Platform)/Release/ClipboardTTSMonitor.exe
+
+# Generacion del instalador MSI con WiX v4
+wix build installer/Package.wxs \
+  -d BuildDir=bin/$(Platform)/Release \
+  -arch $(Platform) \
+  -out ClipboardTTSMonitor_$(Platform).msi
+
+# Firma del MSI
+signtool sign /fd SHA256 /a /tr http://timestamp.digicert.com \
+  ClipboardTTSMonitor_$(Platform).msi</code></pre>
+</div>
+
+<h3>5.2 Estructura del Instalador WiX v4 (Package.wxs)</h3>
+
+<div class="config-file">
+<div class="config-file-title">Package.wxs - Estructura del Instalador MSI</div>
+<pre>&lt;?xml version="1.0" encoding="UTF-8"?&gt;
+&lt;Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"&gt;
+  &lt;Package Name="Clipboard TTS Monitor"
+           Version="1.0.0.0"
+           Manufacturer="[EMPRESA]"
+           UpgradeCode="[GUID-FIJO]"
+           Scope="perUser"&gt;
+    
+    &lt;!-- Directorios dinamicos segun arquitectura --&gt;
+    &lt;StandardDirectory Id="ProgramFiles6432Folder"&gt;
+      &lt;Directory Id="INSTALLFOLDER" Name="ClipboardTTSMonitor"&gt;
+        &lt;Component&gt;
+          &lt;File Source="!(bindpath.build)ClipboardTTSMonitor.exe" /&gt;
+        &lt;/Component&gt;
+        &lt;Component&gt;
+          &lt;File Source="!(bindpath.build)app.ico" /&gt;
+        &lt;/Component&gt;
+      &lt;/Directory&gt;
+    &lt;/StandardDirectory&gt;
+    
+    &lt;!-- Config.ini protegido contra sobreescritura --&gt;
+    &lt;StandardDirectory Id="LocalAppDataFolder"&gt;
+      &lt;Directory Id="CONFIGFOLDER" Name="ClipboardTTSMonitor"&gt;
+        &lt;Component NeverOverwrite="yes"&gt;
+          &lt;File Source="config.ini.default" Name="config.ini" /&gt;
+        &lt;/Component&gt;
+      &lt;/Directory&gt;
+    &lt;/StandardDirectory&gt;
+    
+    &lt;!-- Auto-arranque en HKCU --&gt;
+    &lt;Component Directory="CONFIGFOLDER"&gt;
+      &lt;RegistryValue Root="HKCU"
+        Key="Software\Microsoft\Windows\CurrentVersion\Run"
+        Name="ClipboardTTSMonitor"
+        Type="string"
+        Value="[INSTALLFOLDER]ClipboardTTSMonitor.exe"
+        KeyPath="yes" /&gt;
+    &lt;/Component&gt;
+    
+  &lt;/Package&gt;
+&lt;/Wix&gt;</pre>
+</div>
+
+<h3>5.3 Tabla de Componentes del Instalador</h3>
+
+<table>
+<caption data-label="Tabla 6">Componentes del Instalador MSI</caption>
+<thead>
+<tr><th>Componente</th><th>Destino</th><th>Atributos</th><th>Proposito</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ClipboardTTSMonitor.exe</code></td>
+<td><code>ProgramFiles6432Folder\ClipboardTTSMonitor\</code></td>
+<td>KeyPath=yes, Versionado</td>
+<td>Ejecutable principal de la aplicacion</td>
+</tr>
+<tr>
+<td><code>app.ico</code></td>
+<td><code>ProgramFiles6432Folder\ClipboardTTSMonitor\</code></td>
+<td>Acompanante del EXE</td>
+<td>Icono para la bandeja del sistema</td>
+</tr>
+<tr>
+<td><code>config.ini</code></td>
+<td><code>%APPDATA%\ClipboardTTSMonitor\</code></td>
+<td><strong>NeverOverwrite="yes"</strong></td>
+<td>Configuracion del usuario; preservada en upgrades</td>
+</tr>
+<tr>
+<td>Registry Run</td>
+<td><code>HKCU\Software\Microsoft\Windows\CurrentVersion\Run</code></td>
+<td>KeyPath=yes</td>
+<td>Auto-arranque del usuario (no requiere admin)</td>
+</tr>
+</tbody>
+</table>
+
+<h2 id="vista-estados">6. Vista de Estados/Datos</h2>
+
+<p>La maquina de estados finitos (FSM) gobierna el ciclo de vida de la aplicacion, definiendo las transiciones validas entre los cuatro estados principales y las acciones asociadas a cada transicion.</p>
+
+<h3>6.1 Diagrama de Estados</h3>
+
+<figure id="fig-7">
+<div class="mermaid">
+flowchart LR
+    subgraph INIT["Inicializacion"]
+        START[("Inicio")]
+    end
+    subgraph STATES["Estados de Operacion"]
+        INA["INACTIVA<br/>(Hook desactivado)"]
+        ESC["ESCUCHANDO<br/>(Esperando clipboard)"]
+        HAB["HABLANDO<br/>(Reproduciendo TTS)"]
+        SUS["SUSPENDIDA<br/>(Pausa temporal)"]
+    end
+
+    START -->|"Inicializacion OK"| ESC
+    ESC -->|"ALT+1 (toggle)"| INA
+    INA -->|"ALT+1 (toggle)"| ESC
+    ESC -->|"WM_CLIPBOARDUPDATE<br/>+ texto extraido"| HAB
+    HAB -->|"SPEI_END (TTS completo)"| ESC
+    HAB -->|"CTRL+1 (detener)"| ESC
+    HAB -->|"ALT+1 (toggle)"| INA
+    ESC -->|"Reconfiguracion<br/>de atajos"| SUS
+    SUS -->|"Reconfig OK"| ESC
+    INA -->|"Salir"| END["Terminar"]
+    ESC -->|"Salir"| END
+    HAB -->|"Salir"| END
+</div>
+<figcaption data-label="Figura 7">Maquina de Estados Finitos - Ciclo de Vida de la Aplicacion</figcaption>
+</figure>
+
+<h3>6.2 Definicion Formal de Estados y Transiciones</h3>
+
+<table>
+<caption data-label="Tabla 7">Especificacion Formal de la Maquina de Estados</caption>
+<thead>
+<tr><th>Estado</th><th>Descripcion</th><th>Icono Bandeja</th><th>Acciones Permitidas</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>INACTIVA</strong></td>
+<td>El hook del portapapeles esta desactivado. Los eventos <code>WM_CLIPBOARDUPDATE</code> se reciben pero se descartan sin procesamiento. Los hotkeys globales (CTRL+1, CTRL+3, ALT+1) siguen funcionando.</td>
+<td>Icono gris (desaturado) con tooltip "Clipboard TTS Monitor [INACTIVO]"</td>
+<td>ALT+1 (→ ESCUCHANDO), CTRL+1 (no-op), CTRL+3 (repetir historico), Salir</td>
+</tr>
+<tr>
+<td><strong>ESCUCHANDO</strong></td>
+<td>El sistema esta activo y monitoreando el portapapeles. Cada <code>WM_CLIPBOARDUPDATE</code> dispara la extraccion asincrona y sintesis de voz.</td>
+<td>Icono verde (normal) con tooltip "Clipboard TTS Monitor [ACTIVO]"</td>
+<td>ALT+1 (→ INACTIVA), CTRL+C trigger (→ HABLANDO), CTRL+3, Salir</td>
+</tr>
+<tr>
+<td><strong>HABLANDO</strong></td>
+<td>El motor TTS esta reproduciendo audio. Los nuevos eventos de portapapeles se encolan (o se descartan segun configuracion). Los hotkeys siguen siendo procesados.</td>
+<td>Icono con indicador animado (tooltip muestra progreso: "Hablando: XX%")</td>
+<td>CTRL+1 (→ ESCUCHANDO, detener), ALT+1 (→ INACTIVA, detener), CTRL+3 (encolar repeticion)</td>
+</tr>
+<tr>
+<td><strong>SUSPENDIDA</strong></td>
+<td>Estado transitorio durante reconfiguracion de atajos o cambios de configuracion que requieren reinicio parcial de modulos.</td>
+<td>Icono amarillo con tooltip "Clipboard TTS Monitor [RECONFIGURANDO]"</td>
+<td>Ninguna (auto-transicion a ESCUCHANDO tras completar operacion)</td>
+</tr>
+</tbody>
+</table>
+
+<h3>6.3 Diagrama de Transiciones con Acciones</h3>
+
+<figure id="fig-8">
+<div class="mermaid">
+flowchart LR
+    subgraph INA["INACTIVA"]
+        A["Entrada: tooltip='Inactivo'<br/>Accion: desactivar listener"]
+    end
+    subgraph ESC["ESCUCHANDO"]
+        B["Entrada: tooltip='Activo'<br/>Accion: activar listener"]
+    end
+    subgraph HAB["HABLANDO"]
+        C["Entrada: tooltip='Hablando...'<br/>Accion: iniciar TTS"]
+    end
+
+    A -->|"ALT+1"| B
+    B -->|"ALT+1"| A
+    B -->|"WM_CLIPBOARDUPDATE"| C
+    C -->|"SPEI_END / CTRL+1"| B
+    C -->|"ALT+1"| A
+</div>
+<figcaption data-label="Figura 8">Transiciones de Estados con Acciones Asociadas</figcaption>
+</figure>
+
+<h3>6.4 Persistencia de Datos (Estructura config.ini)</h3>
+
+<div class="config-file">
+<div class="config-file-title">config.ini - Archivo de Configuracion Base</div>
+<pre>; Clipboard TTS Monitor - Archivo de Configuracion
+; Codificacion: UTF-16LE con BOM
+; Ubicacion: %APPDATA%\ClipboardTTSMonitor\config.ini
+
+[General]
+; Version del esquema de configuracion
+ConfigVersion=1
+; Estado inicial del hook: 0=Inactivo, 1=Escuchando
+StartListening=1
+; Directorio de grabaciones (ruta absoluta o relativa a %USERPROFILE%)
+RecordingDirectory=%USERPROFILE%\Documents\TTSRecordings
+
+[Hotkeys]
+; Mapeo de funciones a combinaciones de teclas
+; Modificadores: 1=ALT, 2=CTRL, 4=SHIFT, 8=WIN (OR binario)
+; Virtual Key Codes: valores hexadecimales Win32 (ej. 0x31='1', 0x43='C')
+
+; Detener reproduccion (CTRL+1 por defecto)
+StopModifiers=2
+StopVK=0x31
+
+; Repetir ultimo texto (CTRL+3 por defecto)
+RepeatModifiers=2
+RepeatVK=0x33
+
+; Toggle hook activo/inactivo (ALT+1 por defecto)
+ToggleModifiers=1
+ToggleVK=0x31
+
+[TTS]
+; Token ID de la voz seleccionada (cadena SAPI5 completa)
+; Si vacio, usa la voz por defecto del sistema
+VoiceToken=
+; Nivel de velocidad: 1-20 (mapeado a SAPI -10..+10)
+SpeedLevel=10
+; Volumen: 0-100
+Volume=80
+
+[Audio]
+; Habilitacion del modulo de grabacion: 0=OFF, 1=ON
+RecordingEnabled=0
+; Formato de salida: 0=M4A(AAC), 1=WMA
+OutputFormat=0
+; Tasa de bits en kbps: 64, 96, 128, 192
+BitrateKbps=128</pre>
+</div>
+
+
+
+<!-- ==================== PARTE C ==================== -->
+<div class="page-break"></div>
+<h1 id="part-c">PARTE C: Diseno Detallado de Bajo Nivel (LLD) y Configuracion del Entorno</h1>
+
+<p>Esta parte define las firmas formales de las funciones criticas de la API de Windows que seran utilizadas, sus estructuras de datos asociadas, y las reglas arquitectonicas que el agente de IA debera auto-imponer durante la fase de codificacion.</p>
+
+<h2 id="api-firmas">1. Firmas de Funciones Criticas de la API de Windows</h2>
+
+<h3>1.1 API de Clipboard (User32.dll)</h3>
+
+<table>
+<caption data-label="Tabla 8">Funciones de la API de Clipboard</caption>
+<thead>
+<tr><th>Funcion</th><th>Firma</th><th>Uso en el Sistema</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AddClipboardFormatListener</code></td>
+<td><code>BOOL AddClipboardFormatListener(HWND hwnd);</code></td>
+<td>Registra la ventana oculta para recibir <code>WM_CLIPBOARDUPDATE</code> sin interferir el clipboard chain legacy</td>
+</tr>
+<tr>
+<td><code>RemoveClipboardFormatListener</code></td>
+<td><code>BOOL RemoveClipboardFormatListener(HWND hwnd);</code></td>
+<td>Llamado en <code>WM_DESTROY</code> para liberar el listener antes de terminar</td>
+</tr>
+<tr>
+<td><code>OpenClipboard</code></td>
+<td><code>BOOL OpenClipboard(HWND hWndNewOwner);</code></td>
+<td>Invocado desde Worker Thread con <code>hWndNewOwner = NULL</code>, tras retardo de 50ms</td>
+</tr>
+<tr>
+<td><code>CloseClipboard</code></td>
+<td><code>BOOL CloseClipboard(void);</code></td>
+<td>Siempre invocado en par estructurado con <code>OpenClipboard</code> (RAII wrapper)</td>
+</tr>
+<tr>
+<td><code>GetClipboardData</code></td>
+<td><code>HANDLE GetClipboardData(UINT uFormat);</code></td>
+<td>Formato <code>CF_UNICODETEXT = 13</code>; retorna <code>HGLOBAL</code> con texto UTF-16LE</td>
+</tr>
+<tr>
+<td><code>IsClipboardFormatAvailable</code></td>
+<td><code>BOOL IsClipboardFormatAvailable(UINT format);</code></td>
+<td>Verificacion previa para evitar <code>GetClipboardData</code> con formato inexistente</td>
+</tr>
+<tr>
+<td><code>GlobalLock</code></td>
+<td><code>LPVOID GlobalLock(HGLOBAL hMem);</code></td>
+<td>Bloqueo del <code>HGLOBAL</code> retornado para acceso al puntero de datos</td>
+</tr>
+<tr>
+<td><code>GlobalUnlock</code></td>
+<td><code>BOOL GlobalUnlock(HGLOBAL hMem);</code></td>
+<td>Desbloqueo estructurado (RAII <code>AutoGlobalLock</code>)</td>
+</tr>
+<tr>
+<td><code>GlobalSize</code></td>
+<td><code>SIZE_T GlobalSize(HGLOBAL hMem);</code></td>
+<td>Obtencion del tamano del buffer para verificacion de limites</td>
+</tr>
+</tbody>
+</table>
+
+<h3>1.2 API de Hotkeys Globales (User32.dll)</h3>
+
+<table>
+<caption data-label="Tabla 9">Funciones de Registro de Hotkeys Globales</caption>
+<thead>
+<tr><th>Funcion</th><th>Firma</th><th>Uso en el Sistema</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RegisterHotKey</code></td>
+<td><code>BOOL RegisterHotKey(HWND hWnd, int id, UINT fsModifiers, UINT vk);</code></td>
+<td>Registro de cada combinacion; <code>hWnd</code> puede ser NULL (thread-level); <code>id</code> es GlobalAtom</td>
+</tr>
+<tr>
+<td><code>UnregisterHotKey</code></td>
+<td><code>BOOL UnregisterHotKey(HWND hWnd, int id);</code></td>
+<td>Liberacion en cleanup y durante reconfiguracion dinamica</td>
+</tr>
+<tr>
+<td><code>GlobalAddAtom</code></td>
+<td><code>ATOM GlobalAddAtom(LPCWSTR lpString);</code></td>
+<td>Generacion de IDs unicos para cada hotkey en rango 0x0000-0xBFFF</td>
+</tr>
+<tr>
+<td><code>GlobalDeleteAtom</code></td>
+<td><code>ATOM GlobalDeleteAtom(ATOM nAtom);</code></td>
+<td>Liberacion de atoms al salir o reconfigurar</td>
+</tr>
+</tbody>
+</table>
+
+<h3>1.3 API de Bandeja del Sistema (Shell32.dll / ShellAPI)</h3>
+
+<table>
+<caption data-label="Tabla 10">Funciones de System Tray Icon</caption>
+<thead>
+<tr><th>Funcion/Estructura</th><th>Firma</th><th>Uso en el Sistema</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Shell_NotifyIcon</code></td>
+<td><code>BOOL Shell_NotifyIcon(DWORD dwMessage, PNOTIFYICONDATA lpData);</code></td>
+<td>Todas las operaciones: <code>NIM_ADD</code>, <code>NIM_MODIFY</code>, <code>NIM_DELETE</code>, <code>NIM_SETVERSION</code></td>
+</tr>
+<tr>
+<td><code>NOTIFYICONDATA</code></td>
+<td><pre>typedef struct _NOTIFYICONDATAW {
+  DWORD cbSize;
+  HWND hWnd;
+  UINT uFlags;
+  UINT uCallbackMessage;
+  HICON hIcon;
+  WCHAR szTip[128];
+  DWORD dwState;
+  WCHAR szInfo[256];
+  GUID guidItem;
+  HICON hBalloonIcon;
+} NOTIFYICONDATA, *PNOTIFYICONDATA;</pre></td>
+<td>Estructura principal: flags <code>NIF_ICON | NIF_MESSAGE | NIF_TIP | NIF_GUID | NIF_INFO</code>; <code>guidItem</code> para identificacion estable</td>
+</tr>
+<tr>
+<td><code>TrackPopupMenu</code></td>
+<td><code>BOOL TrackPopupMenu(HMENU hMenu, UINT uFlags, int x, int y, int nReserved, HWND hWnd, const RECT* prcRect);</code></td>
+<td>Muestra el menu contextual en coordenadas del cursor; flags <code>TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTALIGN</code></td>
+</tr>
+<tr>
+<td><code>LoadIconMetric</code></td>
+<td><code>HRESULT LoadIconMetric(HINSTANCE hinst, PCWSTR pszName, int lims, HICON* phico);</code></td>
+<td>Carga de icono con soporte DPI-aware (<code>LIM_SMALL</code> o <code>LIM_LARGE</code>)</td>
+</tr>
+</tbody>
+</table>
+
+<h3>1.4 API SAPI5 Text-to-Speech (sapi.h / sapi.lib)</h3>
+
+<table>
+<caption data-label="Tabla 11">Interfaces y Funciones Criticas de SAPI5</caption>
+<thead>
+<tr><th>Interface/Funcion</th><th>Firma/Metodo</th><th>Uso en el Sistema</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ISpVoice</code> (CLSID_SpVoice)</td>
+<td><code>CoCreateInstance(CLSID_SpVoice, NULL, CLSCTX_ALL, IID_ISpVoice, ...)</code></td>
+<td>Instanciacion del motor TTS principal via <code>CComPtr&lt;ISpVoice&gt;</code></td>
+</tr>
+<tr>
+<td><code>ISpVoice::Speak</code></td>
+<td><code>HRESULT Speak(LPCWSTR pwcs, DWORD dwFlags, ULONG* pulStreamNumber);</code></td>
+<td>Sintesis de texto; flags: <code>SPF_ASYNC | SPF_IS_NOT_XML | SPF_PURGEBEFORESPEAK</code> (para purge)</td>
+</tr>
+<tr>
+<td><code>ISpVoice::SetVoice</code></td>
+<td><code>HRESULT SetVoice(ISpObjectToken* pToken);</code></td>
+<td>Seleccion de voz instalada a partir del token enumerado</td>
+</tr>
+<tr>
+<td><code>ISpVoice::SetRate</code></td>
+<td><code>HRESULT SetRate(long RateAdjust);</code></td>
+<td>Ajuste de velocidad; rango SAPI: -10 a +10</td>
+</tr>
+<tr>
+<td><code>ISpVoice::SetVolume</code></td>
+<td><code>HRESULT SetVolume(USHORT usVolume);</code></td>
+<td>Ajuste de volumen; rango 0 a 100</td>
+</tr>
+<tr>
+<td><code>ISpVoice::Skip</code></td>
+<td><code>HRESULT Skip(LPCWSTR pItemType, long lNumItems, ULONG* pulNumSkipped);</code></td>
+<td>Metodo de detencion: <code>Skip(L"SENTENCE", INT_MAX)</code> para saltar todo</td>
+</tr>
+<tr>
+<td><code>ISpVoice::WaitUntilDone</code></td>
+<td><code>HRESULT WaitUntilDone(ULONG msTimeout);</code></td>
+<td>Monitoreo: <code>WaitUntilDone(0)</code> retorna inmediatamente con estado de completado</td>
+</tr>
+<tr>
+<td><code>ISpVoice::SetOutput</code></td>
+<td><code>HRESULT SetOutput(IUnknown* pUnkOutput, BOOL fAllowFormatChanges);</code></td>
+<td>Configuracion de salida de audio (default device o stream personalizado para grabacion)</td>
+</tr>
+<tr>
+<td><code>SpEnumTokens</code></td>
+<td><code>HRESULT SpEnumTokens(LPCWSTR pszCategoryId, LPCWSTR pszReqAttribs, LPCWSTR pszOptAttribs, IEnumSpObjectTokens** ppEnum);</code></td>
+<td>Enumeracion de voces: <code>SpEnumTokens(SPCAT_VOICES, NULL, NULL, &amp;pEnum)</code></td>
+</tr>
+<tr>
+<td><code>IEnumSpObjectTokens::Next</code></td>
+<td><code>HRESULT Next(ULONG celt, ISpObjectToken** pelt, ULONG* pceltFetched);</code></td>
+<td>Iteracion sobre voces disponibles en el sistema</td>
+</tr>
+<tr>
+<td><code>ISpObjectToken::GetStringValue</code></td>
+<td><code>HRESULT GetStringValue(LPCWSTR pszValueName, LPWSTR* ppszValue);</code></td>
+<td>Obtencion de atributos: <code>L"Name"</code>, <code>L"Language"</code>, <code>L"Gender"</code>, <code>L"Vendor"</code></td>
+</tr>
+<tr>
+<td><code>ISpObjectToken::GetId</code></td>
+<td><code>HRESULT GetId(LPWSTR* ppszCoMemTokenId);</code></td>
+<td>Obtencion del token ID completo para persistencia en config.ini</td>
+</tr>
+</tbody>
+</table>
+
+<h3>1.5 Windows Media Foundation (mfreadwrite.lib, mfuuid.lib)</h3>
+
+<table>
+<caption data-label="Tabla 12">Funciones de Windows Media Foundation para Grabacion AAC</caption>
+<thead>
+<tr><th>Funcion/Interface</th><th>Firma</th><th>Uso en el Sistema</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MFCreateSinkWriterFromURL</code></td>
+<td><code>HRESULT MFCreateSinkWriterFromURL(LPCWSTR pwszOutputURL, IMFByteStream* pByteStream, IMFAttributes* pAttributes, IMFSinkWriter** ppSinkWriter);</code></td>
+<td>Creacion del escritor de salida M4A con URL del archivo destino</td>
+</tr>
+<tr>
+<td><code>IMFSinkWriter::AddStream</code></td>
+<td><code>HRESULT AddStream(IMFMediaType* pmt, DWORD* pdwStreamIndex);</code></td>
+<td>Adicion del stream de audio con media type AAC configurado</td>
+</tr>
+<tr>
+<td><code>IMFSinkWriter::SetInputMediaType</code></td>
+<td><code>HRESULT SetInputMediaType(DWORD dwStreamIndex, IMFMediaType* pmt, IMFAttributes* pEncodingParameters);</code></td>
+<td>Configuracion del formato de entrada (PCM 16-bit, 44100Hz, stereo)</td>
+</tr>
+<tr>
+<td><code>IMFSinkWriter::BeginWriting</code></td>
+<td><code>HRESULT BeginWriting(void);</code></td>
+<td>Inicio de la sesion de escritura de audio</td>
+</tr>
+<tr>
+<td><code>IMFSinkWriter::WriteSample</code></td>
+<td><code>HRESULT WriteSample(DWORD dwStreamIndex, IMFSample* pSample);</code></td>
+<td>Escritura de cada muestra de audio (encapsulada en IMFMediaBuffer)</td>
+</tr>
+<tr>
+<td><code>IMFSinkWriter::Finalize</code></td>
+<td><code>HRESULT Finalize(void);</code></td>
+<td>Finalizacion y cierre del archivo M4A con headers correctos</td>
+</tr>
+<tr>
+<td><code>MFCreateMediaType</code></td>
+<td><code>HRESULT MFCreateMediaType(IMFMediaType** ppMFType);</code></td>
+<td>Creacion de media types para entrada (PCM) y salida (AAC)</td>
+</tr>
+<tr>
+<td><code>MFCreateMemoryBuffer</code></td>
+<td><code>HRESULT MFCreateMemoryBuffer(DWORD cbMaxLength, IMFMediaBuffer** ppBuffer);</code></td>
+<td>Allocacion de buffers para muestras de audio</td>
+</tr>
+<tr>
+<td><code>MFCreateSample</code></td>
+<td><code>HRESULT MFCreateSample(IMFSample** ppIMFSample);</code></td>
+<td>Creacion de objetos de muestra para WriteSample</td>
+</tr>
+<tr>
+<td><code>MFStartup</code></td>
+<td><code>HRESULT MFStartup(ULONG Version, DWORD dwFlags);</code></td>
+<td>Inicializacion de WMF: <code>MFStartup(MF_VERSION, MFSTARTUP_FULL)</code></td>
+</tr>
+<tr>
+<td><code>MFShutdown</code></td>
+<td><code>HRESULT MFShutdown(void);</code></td>
+<td>Limpieza de WMF al terminar la aplicacion</td>
+</tr>
+</tbody>
+</table>
+
+<h3>1.6 Funciones de Utilidad y Configuracion</h3>
+
+<table>
+<caption data-label="Tabla 13">Funciones de Configuracion y Utilidades Win32</caption>
+<thead>
+<tr><th>Funcion</th><th>Firma</th><th>Uso en el Sistema</th></tr>
+</thead>
+<tbody>
+<tr>
+<td><code>GetPrivateProfileString</code></td>
+<td><code>DWORD GetPrivateProfileStringW(LPCWSTR lpAppName, LPCWSTR lpKeyName, LPCWSTR lpDefault, LPWSTR lpReturnedString, DWORD nSize, LPCWSTR lpFileName);</code></td>
+<td>Lectura de valores string de config.ini (codificado UTF-16LE)</td>
+</tr>
+<tr>
+<td><code>GetPrivateProfileInt</code></td>
+<td><code>UINT GetPrivateProfileIntW(LPCWSTR lpAppName, LPCWSTR lpKeyName, INT nDefault, LPCWSTR lpFileName);</code></td>
+<td>Lectura de valores enteros (modifiers, VK codes, speed level)</td>
+</tr>
+<tr>
+<td><code>WritePrivateProfileString</code></td>
+<td><code>BOOL WritePrivateProfileStringW(LPCWSTR lpAppName, LPCWSTR lpKeyName, LPCWSTR lpString, LPCWSTR lpFileName);</code></td>
+<td>Persistencia de configuracion modificada</td>
+</tr>
+<tr>
+<td><code>SHGetKnownFolderPath</code></td>
+<td><code>HRESULT SHGetKnownFolderPath(REFKNOWNFOLDERID rfid, DWORD dwFlags, HANDLE hToken, PWSTR* ppszPath);</code></td>
+<td>Obtencion de <code>FOLDERID_RoamingAppData</code> para ubicar config.ini</td>
+</tr>
+<tr>
+<td><code>GetLocalTime</code></td>
+<td><code>VOID GetLocalTime(LPSYSTEMTIME lpSystemTime);</code></td>
+<td>Obtencion de fecha/hora para nomenclatura ISO 8601 de archivos de grabacion</td>
+</tr>
+<tr>
+<td><code>CreateThread</code></td>
+<td><code>HANDLE CreateThread(LPSECURITY_ATTRIBUTES lpThreadAttributes, SIZE_T dwStackSize, LPTHREAD_START_ROUTINE lpStartAddress, LPVOID lpParameter, DWORD dwCreationFlags, LPDWORD lpThreadId);</code></td>
+<td>Creacion del Worker Thread para extraccion de clipboard</td>
+</tr>
+<tr>
+<td><code>PostMessage</code></td>
+<td><code>BOOL PostMessageW(HWND hWnd, UINT Msg, WPARAM wParam, LPARAM lParam);</code></td>
+<td>Comunicacion thread-safe desde Worker Thread al hilo principal</td>
+</tr>
+<tr>
+<td><code>CoInitializeEx</code></td>
+<td><code>HRESULT CoInitializeEx(LPVOID pvReserved, DWORD dwCoInit);</code></td>
+<td>Inicializacion COM: <code>CoInitializeEx(NULL, COINIT_APARTMENTTHREADED)</code></td>
+</tr>
+<tr>
+<td><code>CoUninitialize</code></td>
+<td><code>VOID CoUninitialize(void);</code></td>
+<td>Limpieza COM al salir de WinMain</td>
+</tr>
+</tbody>
+</table>
+
+<h3>1.7 Estructuras de Datos Criticas</h3>
+
+<div class="algorithm">
+<div class="alg-title">Estructuras de Datos Definidas para el Sistema</div>
+<pre><code>// ============================================================
+// Enumeracion de Estados de la Aplicacion (State Machine)
+// ============================================================
+enum class EAppState : UINT {
+    Inactive    = 0,  // Hook desactivado, hotkeys activos
+    Listening   = 1,  // Monitoreando portapapeles
+    Speaking    = 2,  // Reproduciendo TTS
+    Suspended   = 3,  // Reconfiguracion temporal
+};
+
+// ============================================================
+// Estructura de Configuracion de Hotkey (persistible)
+// ============================================================
+struct SHotkeyConfig {
+    UINT    fsModifiers;    // MOD_CONTROL=0x0002, MOD_ALT=0x0001, etc.
+    UINT    vkCode;         // Virtual Key Code (ej. 0x31='1', 0x43='C')
+    ATOM    atomId;         // GlobalAtom para RegisterHotKey
+};
+
+// ============================================================
+// Estructura de Configuracion de TTS (persistible)
+// ============================================================
+struct STTSConfig {
+    std::wstring    voiceTokenId;   // Token ID completo de SAPI5
+    INT             speedLevel;     // 1..20 (mapeado a -10..+10)
+    USHORT          volume;         // 0..100
+};
+
+// ============================================================
+// Estructura de Configuracion de Audio (persistible)
+// ============================================================
+struct SAudioConfig {
+    BOOL    recordingEnabled;   // FALSE por defecto
+    UINT    outputFormat;       // 0=M4A(AAC), 1=WMA
+    UINT    bitrateKbps;        // 64, 96, 128, 192
+    std::wstring outputDirectory; // Ruta absoluta de salida
+};
+
+// ============================================================
+// Entrada del Buffer Historico (Circular LIFO)
+// ============================================================
+struct SHistoryEntry {
+    std::wstring    text;       // Texto sintetizado
+    SYSTEMTIME      timestamp;  // Momento de sintesis
+    std::wstring    voiceId;    // Voz utilizada
+};
+
+// ============================================================
+// Mensajes de Windows Personalizados
+// ============================================================
+constexpr UINT WM_APP_CLIPBOARD_TEXT  = WM_APP + 1;  // Worker entrega texto
+constexpr UINT WM_APP_TTS_COMPLETE    = WM_APP + 2;  // TTS finalizo
+constexpr UINT WM_APP_STATE_CHANGED   = WM_APP + 3;  // Cambio de estado
+constexpr UINT WM_TRAYICON            = WM_USER + 1; // Click en icono bandeja
+
+// ============================================================
+// Mapeo de Velocidad: Nivel (1-20) -> Rate SAPI (-10..+10)
+// ============================================================
+inline INT MapSpeedLevelToSAPIRate(INT level) {
+    // level in [1, 20] -> rate in [-10, +10]
+    // Mapeo lineal: rate = round((level - 1) * 20/19 - 10)
+    if (level < 1)  level = 1;
+    if (level > 20) level = 20;
+    return static_cast&lt;INT&gt;(std::round((level - 1) * 20.0 / 19.0 - 10.0));
+}</code></pre>
+</div>
+
+<h2 id="cursorrules">2. Archivo de Configuracion de IA (.cursorrules)</h2>
+
+<p>El archivo <code>.cursorrules</code> (o equivalente de contexto de agente) define las reglas sintacticas y arquitectonicas que el LLM de codificacion debe auto-imponer durante la Fase 1 (Implementacion). Estas reglas son <strong>obligatorias y no negociables</strong>.</p>
+
+<div class="config-file">
+<div class="config-file-title">.cursorrules - Reglas de Codificacion para Clipboard TTS Monitor</div>
+<pre># ============================================================
+# CLIPBOARD TTS MONITOR - REGLAS DE CODIFICACION OBLIGATORIAS
+# Plataforma: Windows 11 (x86/x64) | Win32 API / C++ / COM
+# ============================================================
+
+# === REGLA ARQUITECTONICA #1: Punteros Inteligentes COM ===
+# Toda interfaz COM DEBE gestionarse con CComPtr&lt;T&gt; (ATL).
+# Queda ESTRICTAMENTE PROHIBIDO usar raw pointers para IUnknown*.
+# Ejemplo CORRECTO:
+#   CComPtr&lt;ISpVoice&gt; spVoice;
+#   HRESULT hr = spVoice.CoCreateInstance(CLSID_SpVoice);
+# Ejemplo INCORRECTO (nunca usar):
+#   ISpVoice* pVoice = NULL;  // PROHIBIDO
+#   CoCreateInstance(CLSID_SpVoice, ..., (void**)&amp;pVoice); // PROHIBIDO
+always_use: CComPtr_for_COM
+never_use: raw_pointers_for_COM
+
+# === REGLA ARQUITECTONICA #2: Tipos Polimorficos de Puntero ===
+# En toda API Win32 que maneje handles, punteros, o valores
+# de plataforma-dependent size, DEBEN usarse tipos polymorphic:
+#   INT_PTR, LONG_PTR, UINT_PTR, DWORD_PTR, WPARAM, LPARAM
+# Queda PROHIBIDO usar DWORD, UINT, int para almacenar
+# valores de puntero o handles HWND/HMENU/HGLOBAL.
+always_use: INT_PTR_LongPtr_for_handles
+never_use: DWORD_UINT_int_for_pointers
+
+# === REGLA ARQUITECTONICA #3: Unicode Estricto ===
+# Todo el codigo usa wchar_t / std::wstring / LPCWSTR / LPWSTR.
+# Las funciones Win32 DEBEN invocarse en version W (wide):
+#   CreateWindowExW, RegisterClassExW, GetClipboardData, etc.
+# El proyecto compila con UNICODE y _UNICODE definidos.
+# Queda PROHIBIDO usar char* / std::string / LPCSTR para APIs Win32.
+always_use: wchar_t_wide_strings
+never_use: char_ansi_strings_for_Win32_API
+
+# === REGLA ARQUITECTONICA #4: RAII para Recursos ===
+# Todo recurso con ciclo de vida manual DEBE envolverse en RAII:
+#   - HGLOBAL: AutoGlobalLock (GlobalLock/GlobalUnlock)
+#   - Clipboard: AutoClipboard (OpenClipboard/CloseClipboard)
+#   - COM init: AutoComInitialize (CoInitializeEx/CoUninitialize)
+#   - Handles Windows: unique_ptr con deleter custom
+# Queda PROHIBIDO llamar CloseClipboard, GlobalUnlock, etc.
+# manualmente sin estructura RAII que garantice excepcion-safety.
+always_use: RAII_wrappers_for_resources
+never_use: manual_cleanup_without_RAII
+
+# === REGLA ARQUITECTONICA #5: Thread Safety ===
+# - El hilo principal PROCESA MENSAJES UNICAMENTE (GetMessage loop).
+# - NUNCA invocar OpenClipboard desde el hilo principal.
+# - NUNCA invocar ISpVoice::Speak sincronamente (sin SPF_ASYNC).
+# - Worker Thread usa Sleep(50) antes de OpenClipboard.
+# - Comunicacion inter-thread via PostMessage UNICAMENTE.
+# - Datos compartidos protegidos con std::mutex o std::atomic.
+thread_model: UI_thread_messages_only
+clipboard_access: worker_thread_with_50ms_backoff
+TTS_mode: SPF_ASYNC_always
+inter_thread: PostMessage_only
+
+# === REGLA ARQUITECTONICA #6: No Interferencia Clipboard ===
+# - Usar AddClipboardFormatListener (NO SetClipboardViewer legacy).
+# - NO modificar el contenido del portapapeles NUNCA.
+# - NO llamar EmptyClipboard NUNCA.
+# - Extraer solo CF_UNICODETEXT; ignorar otros formatos.
+# - Copiar el texto a buffer propio inmediatamente (no retener
+#   HGLOBAL despues de CloseClipboard).
+clipboard_listener: AddClipboardFormatListener_only
+clipboard_format: CF_UNICODETEXT_only
+clipboard_modification: NEVER
+
+# === REGLA ARQUITECTONICA #7: Gestion de Errores ===
+# - Toda funcion Win32/COM DEBE verificar valor de retorno.
+# - HRESULT: usar SUCCEEDED() / FAILED() macros.
+# - BOOL: verificar != FALSE.
+# - HANDLE: verificar != NULL y != INVALID_HANDLE_VALUE.
+# - En caso de error: OutputDebugString con contexto, NOT tooltip
+#   via NIF_INFO, continuar operacion sin terminar proceso.
+error_checking: mandatory_for_all_API_calls
+error_response: log_tooltip_continue
+error_fatal: only_for_CoInitialize_and_CreateWindow
+
+# === REGLA DE ESTILO #8: Convencion de Nombres ===
+# - Clases: C prefix (CTTSEngine, CTrayIcon, CConfigManager)
+# - Structs: S prefix (STTSConfig, SHotkeyConfig)
+# - Enums: E prefix + class enum (EAppState)
+# - Miembros: m_ prefix (m_spVoice, m_state, m_hWnd)
+# - Constantes: UPPER_SNAKE_CASE (WM_APP_CLIPBOARD_TEXT)
+# - Funciones: PascalCase (SpeakText, StopSpeaking)
+# - Variables locales: camelCase (text, speedLevel, hResult)
+naming_classes: C_prefix_PascalCase
+aming_structs: S_prefix_PascalCase
+ naming_enums: E_prefix_PascalCase_enum_class
+naming_members: m_camelCase
+naming_constants: UPPER_SNAKE_CASE
+naming_functions: PascalCase
+naming_locals: camelCase
+
+# === REGLA DE ESTILO #9: Headers y Organizacion ===
+# - pch.h: unicamente Windows SDK headers y ATL (sapi.h, shellapi.h,
+#   mfreadwrite.h, etc.) + STL containers
+# - Cada .cpp incluye su .h correspondiente + pch.h
+# - NO usar using namespace std; en headers.
+# - Forward declarations preferidas sobre #include cuando sea posible.
+# - Include guards: #pragma once (NO #ifndef guards).
+precompiled_header: pch.h_with_WinSDK_ATL_STL
+include_guards: pragma_once
+using_namespace: prohibited_in_headers
+
+# === REGLA DE ESTILO #10: Dependencias de Modulos ===
+# - main -> core, ui, tts, config, utils (hoja)
+# - ui -> core, tts, audio, config (solo queries de estado)
+# - core -> tts, config, utils
+# - tts -> audio (stream PCM), utils
+# - audio -> config, utils
+# - config -> utils
+# - utils -> (ninguno, modulo hoja)
+# PROHIBIDO: dependencias inversas, circulares, o acceso directo
+# a modulos no declarados.
+dependency_graph: DAG_strict
+forbidden: reverse_dependencies, circular_dependencies
+
+# === REGLA DE ESTILO #11: Comentarios y Documentacion ===
+# - Toda clase publica: comentario de proposito + lista de responsabilidades
+# - Toda funcion publica: comentario con @param, @return, @throws
+# - Codigo complejo: comentario explicando el PORQUE, no el QUE
+# - Constantes magicas: SIEMPRE nombradas (constexpr/enum)
+documentation: doxygen_style_for_public_API
+magic_numbers: constexpr_always
+
+# === CONFIGURACION DE PLATAFORMA ===
+platform: Windows_11_x86_x64
+minimum_sdk: Windows_10_19041
+character_set: Unicode
+runtime_library: Multi_threaded_DLL_Release
+warning_level: W4_treat_warnings_as_errors
+
+# === RESTRICCIONES DE IMPLEMENTACION ===
+no_mfc: true
+no_clr: true
+no_std_threads_for_UI: UI_must_use_Win32_message_loop
+stl_allowed: containers_string_algorithm_only
+boost: prohibited
+cpp_standard: C++17_minimum</pre>
+</div>
+
+
+
+<!-- ==================== ANEXOS ==================== -->
+<div class="page-break"></div>
+<h1 id="anexos">Anexos Tecnicos</h1>
+
+<h2 id="anexo-a">Anexo A: Tabla de Mapeo de Velocidades</h2>
+
+<p>La siguiente tabla establece el mapeo matematico exacto entre los 20 niveles de velocidad expuestos al usuario y los valores <code>Rate</code> internos del motor SAPI5 de Microsoft.</p>
+
+<div class="definition">
+<span class="definition-title">Formula de Mapeo:</span> Para un nivel de velocidad $n \in [1, 20]$, el rate SAPI se calcula como:
+$$Rate_{SAPI}(n) = \left\lfloor (n - 1) \times \frac{20}{19} - 10 + 0.5 \right\rfloor$$
+Esta formula garantiza un mapeo lineal desde $Rate = -10$ (nivel 1, velocidad $0.25x$) hasta $Rate = +10$ (nivel 20, velocidad $2.5x$), pasando por $Rate = 0$ (nivel 10, velocidad $1.0x$).
+</div>
+
+<table>
+<caption data-label="Tabla A.1">Mapeo Completo: Nivel de Velocidad vs Rate SAPI</caption>
+<thead>
+<tr><th>Nivel UI</th><th>Rate SAPI</th><th>Velocidad Aprox.</th><th>Nivel UI</th><th>Rate SAPI</th><th>Velocidad Aprox.</th></tr>
+</thead>
+<tbody>
+<tr><td>1</td><td>-10</td><td>0.25x</td><td>11</td><td>+1</td><td>1.10x</td></tr>
+<tr><td>2</td><td>-9</td><td>0.35x</td><td>12</td><td>+2</td><td>1.20x</td></tr>
+<tr><td>3</td><td>-8</td><td>0.45x</td><td>13</td><td>+3</td><td>1.30x</td></tr>
+<tr><td>4</td><td>-7</td><td>0.55x</td><td>14</td><td>+4</td><td>1.42x</td></tr>
+<tr><td>5</td><td>-6</td><td>0.65x</td><td>15</td><td>+5</td><td>1.55x</td></tr>
+<tr><td>6</td><td>-5</td><td>0.75x</td><td>16</td><td>+6</td><td>1.70x</td></tr>
+<tr><td>7</td><td>-4</td><td>0.85x</td><td>17</td><td>+7</td><td>1.85x</td></tr>
+<tr><td>8</td><td>-3</td><td>0.92x</td><td>18</td><td>+8</td><td>2.00x</td></tr>
+<tr><td>9</td><td>-2</td><td>0.97x</td><td>19</td><td>+9</td><td>2.25x</td></tr>
+<tr><td>10</td><td>0</td><td>1.00x</td><td>20</td><td>+10</td><td>2.50x</td></tr>
+</tbody>
+</table>
+
+<p><strong>Nota de implementacion:</strong> La funcion <code>ISpVoice::SetRate()</code> acepta valores en el rango $[-10, +10]$ como enteros de 32 bits (<code>LONG</code>). Los valores negativos ralentizan la voz, los positivos la aceleran. El valor 0 corresponde a la velocidad nominal de la voz instalada. La percepcion subjetiva de velocidad varia entre voces e idiomas; el mapeo lineal garantiza consistencia matematica.</p>
+
+<h2 id="anexo-b">Anexo B: Enumeracion de Voces SAPI5</h2>
+
+<p>El siguiente fragmento conceptual ilustra el patron de enumeracion de voces instaladas mediante la API SAPI5. Este patron se implementa en el modulo <code>VoiceEnumerator</code> y el resultado se expone al usuario a traves del menu contextual del icono de bandeja.</p>
+
+<div class="algorithm">
+<div class="alg-title">Patron de Enumeracion de Voces SAPI5</div>
+<pre><code>// ============================================================
+// Enumerar todas las voces TTS instaladas en el sistema
+// utilizando SpEnumTokens helper y CComPtr para gestion COM
+// ============================================================
+HRESULT EnumerateInstalledVoices(
+    std::vector&lt;std::pair&lt;std::wstring, std::wstring&gt;&gt;&amp; outVoices
+) {
+    // outVoices: vector de pares &lt;TokenID, DisplayName&gt;
+    CComPtr&lt;IEnumSpObjectTokens&gt; spEnum;
+    
+    // Enumerar todas las voces en la categoria SPCAT_VOICES
+    HRESULT hr = SpEnumTokens(
+        SPCAT_VOICES,    // L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Speech\\Voices"
+        NULL,            // Sin atributos requeridos
+        NULL,            // Sin atributos opcionales
+        &amp;spEnum
+    );
+    if (FAILED(hr)) return hr;
+    
+    // Iterar sobre los tokens encontrados
+    while (hr == S_OK) {
+        CComPtr&lt;ISpObjectToken&gt; spToken;
+        ULONG celtFetched = 0;
+        hr = spEnum-&gt;Next(1, &amp;spToken, &amp;celtFetched);
+        if (FAILED(hr) || celtFetched == 0) break;
+        
+        // Obtener el Token ID completo (para SetVoice y persistencia)
+        LPWSTR pszTokenId = NULL;
+        if (SUCCEEDED(spToken-&gt;GetId(&amp;pszTokenId))) {
+            std::wstring tokenId(pszTokenId);
+            CoTaskMemFree(pszTokenId);
+            
+            // Obtener el nombre descriptivo de la voz
+            LPWSTR pszName = NULL;
+            if (SUCCEEDED(spToken-&gt;GetStringValue(L"Name", &amp;pszName))) {
+                std::wstring name(pszName);
+                CoTaskMemFree(pszName);
+                
+                // Opcional: obtener idioma y genero
+                LPWSTR pszLang = NULL;
+                if (SUCCEEDED(spToken-&gt;GetStringValue(L"Language", &amp;pszLang))) {
+                    // pszLang contiene el LANGID (ej. "409" para en-US)
+                    CoTaskMemFree(pszLang);
+                }
+                
+                outVoices.emplace_back(tokenId, name);
+            }
+        }
+        // spToken se libera automaticamente al salir del scope (CComPtr)
+    }
+    
+    return S_OK;
+}</code></pre>
+</div>
+
+<h3>B.1 Voces Nativas de Windows 11</h3>
+
+<p>Windows 11 incluye voces <strong>OneCore</strong> (nativas del sistema operativo) que son accessibles via SAPI5. Las voces disponibles dependen de los paquetes de idioma instalados. Las voces comunes incluyen:</p>
+
+<table>
+<caption data-label="Tabla B.1">Voces OneCore Tipicas en Windows 11</caption>
+<thead>
+<tr><th>Idioma</th><th>Nombre de Voz</th><th>Genero</th><th>Token ID Tipico</th></tr>
+</thead>
+<tbody>
+<tr><td>Espanol (Mexico)</td><td>Sabina</td><td>Femenino</td><td><code>TTS_MS_ES-MX_SABINA_11.0</code></td></tr>
+<tr><td>Espanol (Espana)</td><td>Helena</td><td>Femenino</td><td><code>TTS_MS_ES-ES_HELENA_11.0</code></td></tr>
+<tr><td>Espanol (Espana)</td><td>Pablo</td><td>Masculino</td><td><code>TTS_MS_ES-ES_PABLO_11.0</code></td></tr>
+<tr><td>English (US)</td><td>Zira</td><td>Femenino</td><td><code>TTS_MS_EN-US_ZIRA_11.0</code></td></tr>
+<tr><td>English (US)</td><td>David</td><td>Masculino</td><td><code>TTS_MS_EN-US_DAVID_11.0</code></td></tr>
+<tr><td>English (UK)</td><td>George</td><td>Masculino</td><td><code>TTS_MS_EN-GB_GEORGE_11.0</code></td></tr>
+<tr><td>English (UK)</td><td>Hazel</td><td>Femenino</td><td><code>TTS_MS_EN-GB_HAZEL_11.0</code></td></tr>
+</tbody>
+</table>
+
+<p><strong>Nota:</strong> El sistema no debe hardcodear nombres de voces. Debe enumerar dinamicamente mediante <code>SpEnumTokens</code> y presentar al usuario las voces disponibles en su sistema.</p>
+
+<h2 id="anexo-c">Anexo C: Referencias Tecnicas</h2>
+
+<table>
+<caption data-label="Tabla C.1">Referencias Documentales y Especificaciones</caption>
+<thead>
+<tr><th>Referencia</th><th>Titulo / Descripcion</th><th>Fuente</th></tr>
+</thead>
+<tbody>
+<tr>
+<td>[REF-01]</td>
+<td><strong>AddClipboardFormatListener function (winuser.h)</strong> - Documentacion oficial de la API de listener pasivo de clipboard introducida en Windows Vista.</td>
+<td>Microsoft Learn, 2024</td>
+</tr>
+<tr>
+<td>[REF-02]</td>
+<td><strong>RegisterHotKey function (winuser.h)</strong> - Especificacion completa del registro de hotkeys globales del sistema, incluyendo modificadores y virtual key codes.</td>
+<td>Microsoft Learn, 2024</td>
+</tr>
+<tr>
+<td>[REF-03]</td>
+<td><strong>NOTIFYICONDATAW structure (shellapi.h)</strong> - Definicion de la estructura para iconos de bandeja del sistema con soporte para GUID, tooltips y notificaciones.</td>
+<td>Microsoft Learn, 2022</td>
+</tr>
+<tr>
+<td>[REF-04]</td>
+<td><strong>Microsoft Speech API 5.4 (SAPI 5.4)</strong> - Guia completa de ISpVoice, incluyendo Speak con SPF_ASYNC, SetRate, SetVoice, enumeracion de tokens y eventos.</td>
+<td>Microsoft Docs (Legacy), 2009</td>
+</tr>
+<tr>
+<td>[REF-05]</td>
+<td><strong>Simple TTS Guide SAPI 5.4</strong> - Ejemplos de codigo en C++ para sintesis asincrona, grabacion a archivo WAV, y seleccion de voz especifica.</td>
+<td>Microsoft Learn, 2009</td>
+</tr>
+<tr>
+<td>[REF-06]</td>
+<td><strong>AAC Encoder - Win32 apps</strong> - Especificacion del encoder AAC de Windows Media Foundation, incluyendo media types requeridos y atributos.</td>
+<td>Microsoft Learn, 2018</td>
+</tr>
+<tr>
+<td>[REF-07]</td>
+<td><strong>One-Pass Windows Media Encoding</strong> - Tutorial completo de codificacion WMF incluyendo creacion de ASF profile, sink writer, y topologia de encoders.</td>
+<td>Microsoft Win32 Docs, 2024</td>
+</tr>
+<tr>
+<td>[REF-08]</td>
+<td><strong>MFEncode</strong> - Implementacion de referencia de codificador AAC simple usando Media Foundation codecs de Microsoft.</td>
+<td>GitHub / SvenGroot, 2023</td>
+</tr>
+<tr>
+<td>[REF-09]</td>
+<td><strong>WiX Toolset v4 Documentation</strong> - Guia oficial del WiX Toolset v4 para creacion de instaladores MSI, incluyendo harvesting, componentes y registro.</td>
+<td>FireGiant / WiX, 2024</td>
+</tr>
+<tr>
+<td>[REF-10]</td>
+<td><strong>ISO 8601:2019 Data elements and interchange formats</strong> - Estandar internacional para representacion de fechas y horas aplicado a la nomenclatura de archivos.</td>
+<td>ISO, 2019</td>
+</tr>
+<tr>
+<td>[REF-11]</td>
+<td><strong>SpEnumTokens Helper (SAPI 5.3)</strong> - Documentacion del helper function para enumeracion de tokens de voz SAPI5 con atributos requeridos y opcionales.</td>
+<td>Microsoft Learn, 2012</td>
+</tr>
+<tr>
+<td>[REF-12]</td>
+<td><strong>IMFSinkWriter interface (mfreadwrite.h)</strong> - Interface para escritura de archivos multimedia, incluyendo BeginWriting, WriteSample, y Finalize.</td>
+<td>Microsoft Learn, 2024</td>
+</tr>
+<tr>
+<td>[REF-13]</td>
+<td><strong>Global HotKey Registration in UWP/Win32</strong> - Patrones de implementacion de hotkeys globales con message loop dedicado y NativeWindow.</td>
+<td>Stefan Wick Blog, 2018</td>
+</tr>
+<tr>
+<td>[REF-14]</td>
+<td><strong>Adding an Icon System Tray Win32 C++</strong> - Tutorial completo de implementacion de icono de bandeja con NOTIFYICONDATA y TrackPopupMenu.</td>
+<td>Bobobobo's Weblog, 2014</td>
+</tr>
+<tr>
+<td>[REF-15]</td>
+<td><strong>Isolated Speech - Microsoft Speech Platform SDK</strong> - Documentacion de tokens de objeto SAPI, categorias del registro, y configuracion de voces.</td>
+<td>Microsoft Speech Platform SDK 11</td>
+</tr>
+</tbody>
+</table>
+
+<div class="page-break"></div>
+<h2>Glosario de Terminos</h2>
+
+<table>
+<caption data-label="Tabla C.2">Glosario de Terminos Tecnicos</caption>
+<thead>
+<tr><th>Termino</th><th>Definicion</th></tr>
+</thead>
+<tbody>
+<tr><td><strong>AAC</strong></td><td>Advanced Audio Coding - formato de compresion de audio con perdida, estandar para archivos M4A.</td></tr>
+<tr><td><strong>ATL</strong></td><td>Active Template Library - biblioteca de plantillas C++ de Microsoft para desarrollo COM.</td></tr>
+<tr><td><strong>BDD</strong></td><td>Behavior-Driven Development - metodologia de desarrollo guiada por comportamiento con escenarios Given-When-Then.</td></tr>
+<tr><td><strong>COM</strong></td><td>Component Object Model - modelo de objetos componentes de Microsoft; base de SAPI5 y WMF.</td></tr>
+<tr><td><strong>FSM</strong></td><td>Finite State Machine - maquina de estados finitos que gobierna el ciclo de vida de la aplicacion.</td></tr>
+<tr><td><strong>LLD</strong></td><td>Low-Level Design - diseno detallado de bajo nivel con firmas de funciones y estructuras de datos.</td></tr>
+<tr><td><strong>M4A</strong></td><td>Contenedor de audio MPEG-4 Parte 14, tipicamente con codificacion AAC.</td></tr>
+<tr><td><strong>MSI</strong></td><td>Microsoft Installer - formato de paquete de instalacion nativo de Windows.</td></tr>
+<tr><td><strong>RAII</strong></td><td>Resource Acquisition Is Initialization - idiom C++ para gestion automatica de recursos.</td></tr>
+<tr><td><strong>SAPI5</strong></td><td>Microsoft Speech API version 5 - API COM para sintesis y reconocimiento de voz.</td></tr>
+<tr><td><strong>SPF_ASYNC</strong></td><td>Speech Priority Flag Asynchronous - bandera que indica reproduccion de voz no bloqueante.</td></tr>
+<tr><td><strong>TTS</strong></td><td>Text-to-Speech - tecnologia de conversion de texto a voz sintetica.</td></tr>
+<tr><td><strong>VK Code</strong></td><td>Virtual Key Code - codigo numerico que identifica una tecla fisica en el teclado.</td></tr>
+<tr><td><strong>WMF</strong></td><td>Windows Media Foundation - API nativa de Windows para multimedia (reproduccion, captura, codificacion).</td></tr>
+<tr><td><strong>WiX</strong></td><td>Windows Installer XML Toolset - herramienta para crear paquetes MSI desde codigo XML.</td></tr>
+</tbody>
+</table>
+
+<div class="page-break"></div>
+<div class="definition">
+<span class="definition-title">Resumen Ejecutivo de la Fase 0:</span>
+<p>El presente documento ha establecido la ingenieria de requerimientos completa (14 RF, 10 RNF), 8 historias de usuario con criterios de aceptacion BDD, el modelado arquitectonico 5+1 con diagramas conceptuales para las 6 vistas (Escenarios, Logica, Procesos, Desarrollo, Despliegue, Estados/Datos), el diseno detallado de bajo nivel con firmas formales de 40+ funciones de la API de Windows y sus estructuras de datos, y el archivo de configuracion de IA <code>.cursorrules</code> con 11 reglas sintacticas y arquitectonicas obligatorias.</p>
+<p>El sistema esta disenado para cumplir con los requisitos criticos de no interferencia del portapapeles (RNF-01), bucle de mensajes no bloqueante (RNF-02), tipos seguros para x86/x64 (RNF-03), gestion de memoria RAII/COM (RNF-04), y soporte Unicode estricto (RNF-05). La maquina de estados de 4 estados gobierna el ciclo de vida completo, y el pipeline de despliegue WiX v4 garantiza la instalacion corporativa per-user con auto-arranque y proteccion de configuracion.</p>
+<p><strong>Proxima fase (Fase 1 - Codificacion):</strong> Implementacion de los modulos en el orden: Utils → ConfigManager → StateMachine → TTSEngine → VoiceEnumerator → ClipboardListener → HotkeyManager → TrayIconModule → AudioLogger → AACEncoder → Application → main. Cada modulo debe cumplir con las reglas definidas en <code>.cursorrules</code> antes de proceder al siguiente.</p>
+</div>
+
+</body>
+</html>

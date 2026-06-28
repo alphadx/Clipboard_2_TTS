@@ -1,0 +1,138 @@
+# ============================================================
+# CLIPBOARD TTS MONITOR - REGLAS DE CODIFICACION OBLIGATORIAS
+# Plataforma: Windows 11 (x86/x64) | Win32 API / C++ / COM
+# ============================================================
+
+# === REGLA ARQUITECTONICA #1: Punteros Inteligentes COM ===
+# Toda interfaz COM DEBE gestionarse con CComPtr<T> (ATL).
+# Queda ESTRICTAMENTE PROHIBIDO usar raw pointers para IUnknown*.
+# Ejemplo CORRECTO:
+#   CComPtr<ISpVoice> spVoice;
+#   HRESULT hr = spVoice.CoCreateInstance(CLSID_SpVoice);
+# Ejemplo INCORRECTO (nunca usar):
+#   ISpVoice* pVoice = NULL; // PROHIBIDO
+#   CoCreateInstance(CLSID_SpVoice, ..., (void**)&pVoice); // PROHIBIDO
+always_use: CComPtr_for_COM
+never_use: raw_pointers_for_COM
+
+# === REGLA ARQUITECTONICA #2: Tipos Polimorficos de Puntero ===
+# En toda API Win32 que maneje handles, punteros, o valores
+# de plataforma-dependent size, DEBEN usarse tipos polymorphic:
+# INT_PTR, LONG_PTR, UINT_PTR, DWORD_PTR, WPARAM, LPARAM
+# Queda PROHIBIDO usar DWORD, UINT, int para almacenar
+# valores de puntero o handles HWND/HMENU/HGLOBAL.
+always_use: INT_PTR_LongPtr_for_handles
+never_use: DWORD_UINT_int_for_pointers
+
+# === REGLA ARQUITECTONICA #3: Unicode Estricto ===
+# Todo el codigo usa wchar_t / std::wstring / LPCWSTR / LPWSTR.
+# Las funciones Win32 DEBEN invocarse en version W (wide):
+# CreateWindowExW, RegisterClassExW, GetClipboardData, etc.
+# El proyecto compila con UNICODE y _UNICODE definidos.
+# Queda PROHIBIDO usar char* / std::string / LPCSTR para APIs Win32.
+always_use: wchar_t_wide_strings
+never_use: char_ansi_strings_for_Win32_API
+
+# === REGLA ARQUITECTONICA #4: RAII para Recursos ===
+# Todo recurso con ciclo de vida manual DEBE envolverse en RAII:
+#   - HGLOBAL: AutoGlobalLock (GlobalLock/GlobalUnlock)
+#   - Clipboard: AutoClipboard (OpenClipboard/CloseClipboard)
+#   - COM init: AutoComInitialize (CoInitializeEx/CoUninitialize)
+#   - Handles Windows: unique_ptr con deleter custom
+# Queda PROHIBIDO llamar CloseClipboard, GlobalUnlock, etc.
+# manualmente sin estructura RAII que garantice excepcion-safety.
+always_use: RAII_wrappers_for_resources
+never_use: manual_cleanup_without_RAII
+
+# === REGLA ARQUITECTONICA #5: Thread Safety ===
+# - El hilo principal PROCESA MENSAJES UNICAMENTE (GetMessage loop).
+# - NUNCA invocar OpenClipboard desde el hilo principal.
+# - NUNCA invocar ISpVoice::Speak sincronamente (sin SPF_ASYNC).
+# - Worker Thread usa Sleep(50) antes de OpenClipboard.
+# - Comunicacion inter-thread via PostMessage UNICAMENTE.
+# - Datos compartidos protegidos con std::mutex o std::atomic.
+TTS_mode: SPF_ASYNC_always
+inter_thread: PostMessage_only
+
+# === REGLA ARQUITECTONICA #6: No Interferencia Clipboard ===
+# - Usar AddClipboardFormatListener (NO SetClipboardViewer legacy).
+# - NO modificar el contenido del portapapeles NUNCA.
+# - NO llamar EmptyClipboard NUNCA.
+# - Extraer solo CF_UNICODETEXT; ignorar otros formatos.
+# - Copiar el texto a buffer propio inmediatamente (no retener
+#   HGLOBAL despues de CloseClipboard).
+clipboard_listener: AddClipboardFormatListener_only
+clipboard_format: CF_UNICODETEXT_only
+clipboard_modification: NEVER
+
+# === REGLA ARQUITECTONICA #7: Gestion de Errores ===
+# - Toda funcion Win32/COM DEBE verificar valor de retorno.
+# - HRESULT: usar SUCCEEDED() / FAILED() macros.
+# - BOOL: verificar != FALSE.
+# - HANDLE: verificar != NULL y != INVALID_HANDLE_VALUE.
+# - En caso de error: OutputDebugString con contexto, NOT tooltip
+#   via NIF_INFO, continuar operacion sin terminar proceso.
+error_checking: mandatory_for_all_API_calls
+error_response: log_tooltip_continue
+error_fatal: only_for_CoInitialize_and_CreateWindow
+
+# === REGLA DE ESTILO #8: Convencion de Nombres ===
+# - Clases: C prefix (CTTSEngine, CTrayIcon, CConfigManager)
+# - Structs: S prefix (STTSConfig, SHotkeyConfig)
+# - Enums: E prefix + class enum (EAppState)
+# - Miembros: m_ prefix (m_spVoice, m_state, m_hWnd)
+# - Constantes: UPPER_SNAKE_CASE (WM_APP_CLIPBOARD_TEXT)
+# - Funciones: PascalCase (SpeakText, StopSpeaking)
+# - Variables locales: camelCase (text, speedLevel, hResult)
+naming_classes: C_prefix_PascalCase
+aming_structs: S_prefix_PascalCase
+naming_enums: E_prefix_PascalCase_enum_class
+naming_members: m_camelCase
+naming_constants: UPPER_SNAKE_CASE
+naming_functions: PascalCase
+naming_locals: camelCase
+
+# === REGLA DE ESTILO #9: Headers y Organizacion ===
+# - pch.h: unicamente Windows SDK headers y ATL (sapi.h, shellapi.h,
+#   mfreadwrite.h, etc.) + STL containers
+# - Cada .cpp incluye su .h correspondiente + pch.h
+# - NO usar using namespace std; en headers.
+# - Forward declarations preferidas sobre #include cuando sea posible.
+# - Include guards: #pragma once (NO #ifndef guards).
+precompiled_header: pch.h_with_WinSDK_ATL_STL
+include_guards: pragma_once
+using_namespace: prohibited_in_headers
+
+# === REGLA DE ESTILO #10: Dependencias de Modulos ===
+# - main -> core, ui, tts, config, utils (hoja)
+# - tts -> audio (stream PCM), utils
+# - audio -> config, utils
+# - config -> utils
+# - utils -> (ninguno, modulo hoja)
+# PROHIBIDO: dependencias inversas, circulares, o acceso directo
+# a modulos no declarados.
+dependency_graph: DAG_strict
+forbidden: reverse_dependencies, circular_dependencies
+
+# === REGLA DE ESTILO #11: Comentarios y Documentacion ===
+# - Toda clase publica: comentario de proposito + lista de responsabilidades
+# - Toda funcion publica: comentario con @param, @return, @throws
+# - Codigo complejo: comentario explicando el PORQUE, no el QUE
+# - Constantes magicas: SIEMPRE nombradas (constexpr/enum)
+documentation: doxygen_style_for_public_API
+magic_numbers: constexpr_always
+
+# === CONFIGURACION DE PLATAFORMA ===
+platform: Windows_11_x86_x64
+minimum_sdk: Windows_10_19041
+character_set: Unicode
+runtime_library: Multi_threaded_DLL_Release
+warning_level: W4_treat_warnings_as_errors
+
+# === RESTRICCIONES DE IMPLEMENTACION ===
+no_mfc: true
+no_clr: true
+no_std_threads_for_UI: UI_must_use_Win32_message_loop
+stl_allowed: containers_string_algorithm_only
+boost: prohibited
+cpp_standard: C++17_minimum
